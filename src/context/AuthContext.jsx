@@ -3,6 +3,7 @@ import {
     onAuthStateChanged,
     signInWithEmailAndPassword,
     signOut,
+    sendPasswordResetEmail,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
@@ -16,19 +17,32 @@ export const useAuth = () => {
 export function AuthProvider({ children }) {
     const [currentUser, setCurrentUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [activeRole, setActiveRole] = useState(null);
 
     async function login(email, password) {
         return signInWithEmailAndPassword(auth, email, password);
     }
 
+    async function resetPassword(email) {
+        return sendPasswordResetEmail(auth, email);
+    }
+
     function logout() {
+        localStorage.removeItem('activeRole');
+        setActiveRole(null);
         return signOut(auth);
+    }
+
+    function switchRole(role) {
+        if (currentUser && currentUser.roles.includes(role)) {
+            setActiveRole(role);
+            localStorage.setItem('activeRole', role);
+        }
     }
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
-                // Fetch role and extra data from 'docentes' or 'users' collection
                 try {
                     const docRef = doc(db, 'docentes', user.uid);
                     const docSnap = await getDoc(docRef);
@@ -43,14 +57,12 @@ export function AuthProvider({ children }) {
 
                     if (!userData.roles) userData.roles = ['familia'];
 
-                    // Admin override
                     if (user.email === 'vergaranicolas209@gmail.com' && !userData.roles.includes('administrador')) {
                         userData.roles.push('administrador');
                     }
 
                     const finalRoles = Array.isArray(userData.roles) ? userData.roles : [userData.roles];
 
-                    // Check Global Config for Family Access
                     const configRef = doc(db, 'config', 'appSettings');
                     const configSnap = await getDoc(configRef);
                     const allowFamily = configSnap.exists() ? configSnap.data().allowFamilyAccess : true;
@@ -58,26 +70,38 @@ export function AuthProvider({ children }) {
                     const isStaff = finalRoles.some(r => ['docente', 'docente_area', 'administrador', 'equipo_conduccion'].includes(r));
 
                     if (!allowFamily && !isStaff) {
-                        // User is ONLY family and access is restricted
                         await signOut(auth);
                         setCurrentUser(null);
                         setLoading(false);
                         return;
                     }
 
-                    setCurrentUser({
+                    const userObj = {
                         uid: user.uid,
                         email: user.email,
                         displayName: userData.displayName || user.displayName || 'Usuario',
                         ...userData,
                         roles: finalRoles
-                    });
+                    };
+
+                    setCurrentUser(userObj);
+
+                    // Initialize activeRole
+                    const savedRole = localStorage.getItem('activeRole');
+                    if (savedRole && finalRoles.includes(savedRole)) {
+                        setActiveRole(savedRole);
+                    } else {
+                        setActiveRole(finalRoles[0]);
+                    }
+
                 } catch (error) {
                     console.error("Error fetching user data", error);
                     setCurrentUser({ uid: user.uid, email: user.email, roles: ['familia'] });
+                    setActiveRole('familia');
                 }
             } else {
                 setCurrentUser(null);
+                setActiveRole(null);
             }
             setLoading(false);
         });
@@ -87,8 +111,11 @@ export function AuthProvider({ children }) {
 
     const value = {
         currentUser,
+        activeRole,
         login,
-        logout
+        resetPassword,
+        logout,
+        switchRole
     };
 
     return (

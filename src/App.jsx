@@ -11,6 +11,7 @@ import FamiliasView from './pages/FamiliasView';
 import AuditViews from './pages/AuditViews';
 
 import ForcePasswordChange from './pages/ForcePasswordChange';
+import ForgotPassword from './pages/ForgotPassword';
 import MyStudents from './pages/MyStudents';
 
 function PrivateRoute({ children }) {
@@ -33,6 +34,7 @@ function App() {
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/force-password-change" element={<ForcePasswordChange />} />
 
           {/* Rutas Protegidas */}
