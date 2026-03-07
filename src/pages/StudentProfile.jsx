@@ -4,6 +4,7 @@ import { User, Download, GraduationCap, ChevronLeft, Calendar, Users } from 'luc
 import { doc, getDoc, updateDoc, arrayUnion, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
+import { getCourseLabel } from '../config/constants';
 
 export default function StudentProfile() {
     const { studentId } = useParams();
@@ -255,7 +256,7 @@ export default function StudentProfile() {
                             <p style={{ margin: 0, color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem' }}>DNI: {student?.dni}</p>
                             <div className="flex gap-2 mt-2">
                                 <span className="badge" style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }}>
-                                    <GraduationCap size={12} style={{ marginRight: '4px' }} /> {student?.cursoId || student?.curso}
+                                    <GraduationCap size={12} style={{ marginRight: '4px' }} /> {getCourseLabel(student?.cursoId || student?.curso)}
                                 </span>
                             </div>
                         </div>
@@ -369,7 +370,7 @@ export default function StudentProfile() {
                         </div>
                         <div style={{ textAlign: 'center' }}>
                             <div style={{ border: '1px solid #000', padding: '5px 10px', fontSize: '0.9rem', fontWeight: 800 }}>
-                                {student?.cursoId || student?.curso}
+                                {getCourseLabel(student?.cursoId || student?.curso)}
                             </div>
                         </div>
                     </div>

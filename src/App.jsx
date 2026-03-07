@@ -9,6 +9,7 @@ import StudentProfile from './pages/StudentProfile';
 import AdminPanel from './pages/AdminPanel';
 import FamiliasView from './pages/FamiliasView';
 import AuditViews from './pages/AuditViews';
+import StaffOverview from './pages/StaffOverview';
 
 import ForcePasswordChange from './pages/ForcePasswordChange';
 import ForgotPassword from './pages/ForgotPassword';
@@ -51,6 +52,7 @@ function App() {
             <Route path="estudiantes/:studentId" element={<StudentProfile />} />
             <Route path="mis-hijos" element={<FamiliasView />} />
             <Route path="audit-views" element={<AuditViews />} />
+            <Route path="organizacion-institucional" element={<StaffOverview />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

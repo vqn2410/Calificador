@@ -2,53 +2,74 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { BookOpen, Users } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { VALID_COURSES, getCourseDetails } from '../config/constants';
+import { BookOpen, Users, ShieldAlert } from 'lucide-react';
 
 export default function Courses() {
+    const { currentUser, activeRole } = useAuth();
     const [courses, setCourses] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         async function fetchCourses() {
             try {
-                const querySnapshot = await getDocs(collection(db, 'cursos'));
-                const coursesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                if (coursesData.length > 0) {
-                    setCourses(coursesData);
+                // Roles that see EVERYTHING (24 sections)
+                const isControlUser = ['administrador', 'equipo_conduccion'].includes(activeRole);
+
+                if (isControlUser) {
+                    // Try to get from DB, if empty use constants
+                    const querySnapshot = await getDocs(collection(db, 'cursos'));
+                    let dbCourses = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setCourses(dbCourses.length > 0 ? dbCourses : VALID_COURSES);
                 } else {
-                    // Mock data (24 cursos)
-                    const mockCourses = [];
-                    for (let grado = 1; grado <= 6; grado++) {
-                        ['A', 'B'].forEach((sec) => mockCourses.push({ id: `${grado}${sec}-TM`, grado, seccion: sec, turno: 'Mañana', tipo: grado <= 3 ? 'Conceptual' : 'Numérica' }));
-                        ['C', 'D'].forEach((sec) => mockCourses.push({ id: `${grado}${sec}-TT`, grado, seccion: sec, turno: 'Tarde', tipo: grado <= 3 ? 'Conceptual' : 'Numérica' }));
-                    }
-                    setCourses(mockCourses);
+                    // Specific teacher: MUST match Dashboard "cursosAsignados" source
+                    const assignedIds = currentUser?.cursosAsignados || [];
+
+                    // Fetch full data from DB only for those assigned
+                    const querySnapshot = await getDocs(collection(db, 'cursos'));
+                    const dbData = querySnapshot.docs.reduce((acc, d) => ({ ...acc, [d.id]: d.data() }), {});
+
+                    // Map Ids to full objects (from DB or fallback to constants)
+                    const filtered = assignedIds.map(id => {
+                        const details = getCourseDetails(id) || { grado: id.charAt(0), seccion: id.charAt(1) };
+                        return { id, ...details, ...(dbData[id] || {}) };
+                    });
+
+                    setCourses(filtered);
                 }
             } catch (err) {
-                console.error("Firebase error", err);
-                // Fallback Mock
-                const mockCourses = [];
-                for (let grado = 1; grado <= 6; grado++) {
-                    ['A', 'B'].forEach((sec) => mockCourses.push({ id: `${grado}${sec}-TM`, grado, seccion: sec, turno: 'Mañana', tipo: grado <= 3 ? 'Conceptual' : 'Numérica' }));
-                    ['C', 'D'].forEach((sec) => mockCourses.push({ id: `${grado}${sec}-TT`, grado, seccion: sec, turno: 'Tarde', tipo: grado <= 3 ? 'Conceptual' : 'Numérica' }));
-                }
-                setCourses(mockCourses);
+                console.error("Error matching courses:", err);
+                // Last resort fallback
+                const assigned = currentUser?.cursosAsignados || [];
+                setCourses(assigned.map(id => getCourseDetails(id) || { id, grado: '?', seccion: '?' }));
             } finally {
                 setLoading(false);
             }
         }
 
         fetchCourses();
-    }, []);
+    }, [activeRole, currentUser]);
 
     if (loading) return <div className="container"><h2>Cargando cursos...</h2></div>;
+
+    if (courses.length === 0) {
+        return (
+            <div className="container" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
+                <ShieldAlert size={64} color="var(--color-error)" style={{ marginBottom: '1rem' }} />
+                <h1>Sin Cursos Asignados</h1>
+                <p>No tienes cursos vinculados a tu perfil. Contacta al administrador si crees que esto es un error.</p>
+                <Link to="/" className="btn btn-primary mt-4">Volver al Inicio</Link>
+            </div>
+        );
+    }
 
     return (
         <div className="container">
             <div className="flex justify-between items-center mb-4">
                 <div>
                     <h1>Mis Cursos</h1>
-                    <p>Organización Institucional: 24 Secciones Disponibles.</p>
+                    <p>Gestiona las calificaciones de tus secciones asignadas.</p>
                 </div>
             </div>
 

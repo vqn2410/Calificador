@@ -4,6 +4,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import { User, FileText, GraduationCap } from 'lucide-react';
+import { getCourseLabel } from '../config/constants';
 
 export default function FamiliasView() {
     const { currentUser } = useAuth();
@@ -80,7 +81,7 @@ export default function FamiliasView() {
                                 <div className="flex items-center gap-2 mb-2">
                                     <GraduationCap size={18} color="var(--color-text-muted)" />
                                     <span>
-                                        <strong>Curso Actual:</strong> {hijo.cursoId} ({hijo.turno})
+                                        <strong>Curso Actual:</strong> {getCourseLabel(hijo.cursoId)}
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-2 mb-2">

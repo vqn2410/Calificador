@@ -7,6 +7,7 @@ import {
     GraduationCap,
     ShieldCheck,
     Eye,
+    Map,
     X
 } from 'lucide-react';
 
@@ -135,6 +136,20 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                         >
                             <Eye size={20} />
                             <span style={{ fontWeight: 500 }}>Registro Visualizaciones</span>
+                        </NavLink>
+
+                        <NavLink
+                            to="/organizacion-institucional"
+                            onClick={handleLinkClick}
+                            style={({ isActive }) => ({
+                                display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem',
+                                borderRadius: 'var(--radius-md)', color: 'white', opacity: isActive ? 1 : 0.7,
+                                backgroundColor: isActive ? 'rgba(255,255,255,0.1)' : 'transparent',
+                                transition: 'var(--transition)'
+                            })}
+                        >
+                            <Map size={20} />
+                            <span style={{ fontWeight: 500 }}>Organización Institucional</span>
                         </NavLink>
                     </>
                 ) : (

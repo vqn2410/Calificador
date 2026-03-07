@@ -6,6 +6,7 @@ import { db, firebaseConfig } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import { ShieldCheck, UserPlus, Users, GraduationCap, ArrowRightCircle, RefreshCcw, CheckSquare, Trash2, Edit, FileText, UploadCloud, Activity, Settings, Lock, Unlock, PenTool } from 'lucide-react';
 import InformesConduccion from './InformesConduccion';
+import { VALID_COURSES } from '../config/constants';
 
 const adminApp = initializeApp(firebaseConfig, 'AdminSecondaryApp');
 const secondaryAuth = getAuth(adminApp);
@@ -14,9 +15,8 @@ export default function AdminPanel() {
     const { currentUser } = useAuth();
     const [activeTab, setActiveTab] = useState('docentes');
 
-    // All possible courses
-    const ALL_COURSES = [];
-    [1, 2, 3, 4, 5, 6].forEach(g => ['A', 'B', 'C', 'D'].forEach(s => { ALL_COURSES.push(`${g}${s}-TM`); ALL_COURSES.push(`${g}${s}-TT`); }));
+    // All possible courses normalized from constants
+    const ALL_COURSES = VALID_COURSES.map(c => c.id);
 
     // States Docentes
     const [docentes, setDocentes] = useState([]);
@@ -988,7 +988,7 @@ export default function AdminPanel() {
                                             <td style={{ padding: '0.5rem', fontWeight: 600 }}>{e.nombre}</td>
                                             <td style={{ padding: '0.5rem' }}>{e.dni}</td>
                                             <td style={{ padding: '0.5rem' }}>
-                                                <span className="badge badge-success">{e.cursoId} ({e.turno})</span>
+                                                <span className="badge badge-success">{getCourseLabel(e.cursoId)}</span>
                                             </td>
                                             <td style={{ padding: '0.5rem', textAlign: 'right' }}>
                                                 <button onClick={() => handleEditEstudiante(e)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', marginRight: '0.5rem' }} title="Editar">

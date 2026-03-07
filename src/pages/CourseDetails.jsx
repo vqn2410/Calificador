@@ -4,14 +4,18 @@ import { collection, query, where, getDocs, doc, updateDoc, getDoc } from 'fireb
 import { db } from '../config/firebase';
 import { User, ClipboardList, PenTool, Save, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { getCourseDetails, getCourseLabel } from '../config/constants';
 
 export default function CourseDetails() {
-    const { currentUser } = useAuth();
+    const { currentUser, activeRole } = useAuth();
     const { courseId } = useParams();
     const [students, setStudents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [allowEdit, setAllowEdit] = useState(true);
+
+    const isControlUser = ['administrador', 'equipo_conduccion'].includes(activeRole);
+    const hasAccess = isControlUser || (currentUser?.cursosAsignados || []).includes(courseId);
 
     const [trimestre, setTrimestre] = useState('1er Trimestre');
     const [grades, setGrades] = useState({});
@@ -19,20 +23,26 @@ export default function CourseDetails() {
     const [inasistencias, setInasistencias] = useState({});
     const [diasHabiles, setDiasHabiles] = useState({});
 
-    // courseId is like "1A-TM"
-    const grado = parseInt(courseId.charAt(0));
-    const seccion = courseId.charAt(1);
-    const isConceptual = grado <= 3;
+    const courseDetails = getCourseDetails(courseId);
+    if (!courseDetails && hasAccess) {
+        return <div className="container"><h2>Error: Curso no encontrado en la configuración oficial.</h2></div>;
+    }
+
+    const { grado, seccion, tipo } = courseDetails || { grado: 1, seccion: 'A', tipo: 'Conceptual' };
+    const isConceptual = tipo === 'Conceptual';
 
     const baseSubjects = ['Prácticas del Lenguaje', 'Matemática', 'Ciencias Sociales', 'Ciencias Naturales', 'Educación Física'];
     let subjects = grado >= 4 ? [...baseSubjects, 'Inglés', 'Artística'] : [...baseSubjects, 'Artística'];
 
-    const isStrictAreaTeacher = currentUser?.roles?.includes('docente_area') && (!currentUser.roles.includes('docente') && !currentUser.roles.includes('administrador'));
+    const isStrictAreaTeacher = activeRole === 'docente_area';
 
     const teacherFull = currentUser?.displayName || `${currentUser?.nombre || ''} ${currentUser?.apellido || ''}`.trim() || 'Docente';
-    const teacherRoleStr = currentUser?.roles?.includes('equipo_conduccion')
-        ? 'Equipo de Conducción'
-        : (currentUser?.roles?.includes('docente_area') ? `Docente de Área: ${currentUser.materiaEspecial}` : 'Docente');
+
+    let teacherRoleStr = 'Docente';
+    if (activeRole === 'equipo_conduccion') teacherRoleStr = 'Equipo de Conducción';
+    else if (activeRole === 'administrador') teacherRoleStr = 'Administrador';
+    else if (activeRole === 'docente_area') teacherRoleStr = `Docente de Área: ${currentUser?.materiaEspecial || 'Especialista'}`;
+
     const signature = `${teacherFull} - ${teacherRoleStr}`;
 
     if (isStrictAreaTeacher && currentUser?.materiaEspecial) {
@@ -48,7 +58,6 @@ export default function CourseDetails() {
             const configSnap = await getDoc(configRef);
             const canEditGlobal = configSnap.exists() ? configSnap.data().allowTeacherDataEntry : true;
 
-            const isControlUser = currentUser?.roles?.some(r => ['administrador', 'equipo_conduccion'].includes(r));
             setAllowEdit(canEditGlobal || isControlUser);
 
             const q = query(collection(db, 'estudiantes'), where('cursoId', '==', courseId));
@@ -168,6 +177,18 @@ export default function CourseDetails() {
         }
     };
 
+    if (!hasAccess) {
+        return (
+            <div className="container" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
+                <Lock size={64} color="var(--color-error)" style={{ marginBottom: '1rem' }} />
+                <h1>Acceso No Permitido</h1>
+                <p>No tienes permisos para ver o editar las calificaciones de este curso (<b>{getCourseLabel(courseId)}</b>).
+                    Si crees que esto es un error, por favor contacta al equipo directivo.</p>
+                <Link to="/cursos" className="btn btn-primary mt-4">Ver Mis Cursos Asignados</Link>
+            </div>
+        );
+    }
+
     if (loading) return <div className="container"><h2>Cargando estudiantes...</h2></div>;
 
     return (
@@ -265,8 +286,12 @@ export default function CourseDetails() {
                                 {subjects.map((sub, i) => (
                                     <th key={i} className="vertical-text" style={{ padding: '1rem', width: '40px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle' }}>{sub.toUpperCase()}</th>
                                 ))}
-                                <th className="vertical-text" style={{ padding: '1rem', width: '40px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle' }}>DÍAS HÁBILES</th>
-                                <th className="vertical-text" style={{ padding: '1rem', width: '40px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle' }}>INASISTENCIAS</th>
+                                {!isStrictAreaTeacher && (
+                                    <>
+                                        <th className="vertical-text" style={{ padding: '1rem', width: '40px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle' }}>DÍAS HÁBILES</th>
+                                        <th className="vertical-text" style={{ padding: '1rem', width: '40px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle' }}>INASISTENCIAS</th>
+                                    </>
+                                )}
                                 <th style={{ padding: '1rem', minWidth: '200px', textAlign: 'center', verticalAlign: 'middle' }}>OBSERVACIONES</th>
                             </tr>
                         </thead>
@@ -318,26 +343,30 @@ export default function CourseDetails() {
                                             )}
                                         </td>
                                     ))}
-                                    <td style={{ padding: '1rem', textAlign: 'center' }}>
-                                        <input
-                                            className="input-field mb-0 text-center"
-                                            style={{ width: '50px', padding: '0.25rem', cursor: !allowEdit ? 'not-allowed' : 'text' }}
-                                            type="number" min="0"
-                                            value={diasHabiles[st.id] || ''}
-                                            onChange={(e) => handleDiasHabilesChange(st.id, e.target.value)}
-                                            disabled={!allowEdit}
-                                        />
-                                    </td>
-                                    <td style={{ padding: '1rem', textAlign: 'center' }}>
-                                        <input
-                                            className="input-field mb-0 text-center"
-                                            style={{ width: '50px', padding: '0.25rem', cursor: !allowEdit ? 'not-allowed' : 'text' }}
-                                            type="number" min="0" step="0.5"
-                                            value={inasistencias[st.id] || ''}
-                                            onChange={(e) => handleInasistenciasChange(st.id, e.target.value)}
-                                            disabled={!allowEdit}
-                                        />
-                                    </td>
+                                    {!isStrictAreaTeacher && (
+                                        <>
+                                            <td style={{ padding: '1rem', textAlign: 'center' }}>
+                                                <input
+                                                    className="input-field mb-0 text-center"
+                                                    style={{ width: '50px', padding: '0.25rem', cursor: (!allowEdit || isStrictAreaTeacher) ? 'not-allowed' : 'text' }}
+                                                    type="number" min="0"
+                                                    value={diasHabiles[st.id] || ''}
+                                                    onChange={(e) => handleDiasHabilesChange(st.id, e.target.value)}
+                                                    disabled={!allowEdit || isStrictAreaTeacher}
+                                                />
+                                            </td>
+                                            <td style={{ padding: '1rem', textAlign: 'center' }}>
+                                                <input
+                                                    className="input-field mb-0 text-center"
+                                                    style={{ width: '50px', padding: '0.25rem', cursor: (!allowEdit || isStrictAreaTeacher) ? 'not-allowed' : 'text' }}
+                                                    type="number" min="0" step="0.5"
+                                                    value={inasistencias[st.id] || ''}
+                                                    onChange={(e) => handleInasistenciasChange(st.id, e.target.value)}
+                                                    disabled={!allowEdit || isStrictAreaTeacher}
+                                                />
+                                            </td>
+                                        </>
+                                    )}
                                     <td style={{ padding: '1rem' }}>
                                         <div className="flex flex-col gap-2">
                                             {/* Existing observations from other teachers */}
