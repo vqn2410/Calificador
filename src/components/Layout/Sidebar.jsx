@@ -6,6 +6,7 @@ import {
     LogOut,
     GraduationCap,
     ShieldCheck,
+    Eye,
     X
 } from 'lucide-react';
 
@@ -48,7 +49,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
             </div>
 
             <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {!currentUser?.roles?.includes('familia') || currentUser?.roles?.length > 1 ? (
+                {!(currentUser?.roles || []).includes('familia') || (currentUser?.roles || []).length > 1 ? (
                     <>
                         <NavLink
                             to="/"
@@ -74,13 +75,41 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                                 transition: 'var(--transition)'
                             })}
                         >
-                            <Users size={20} />
+                            <GraduationCap size={20} />
                             <span style={{ fontWeight: 500 }}>Mis Cursos</span>
+                        </NavLink>
+
+                        <NavLink
+                            to="/mis-estudiantes"
+                            onClick={handleLinkClick}
+                            style={({ isActive }) => ({
+                                display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem',
+                                borderRadius: 'var(--radius-md)', color: 'white', opacity: isActive ? 1 : 0.7,
+                                backgroundColor: isActive ? 'rgba(255,255,255,0.1)' : 'transparent',
+                                transition: 'var(--transition)'
+                            })}
+                        >
+                            <Users size={20} />
+                            <span style={{ fontWeight: 500 }}>Mis Estudiantes</span>
+                        </NavLink>
+
+                        <NavLink
+                            to="/audit-views"
+                            onClick={handleLinkClick}
+                            style={({ isActive }) => ({
+                                display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem',
+                                borderRadius: 'var(--radius-md)', color: 'white', opacity: isActive ? 1 : 0.7,
+                                backgroundColor: isActive ? 'rgba(255,255,255,0.1)' : 'transparent',
+                                transition: 'var(--transition)'
+                            })}
+                        >
+                            <Eye size={20} />
+                            <span style={{ fontWeight: 500 }}>Registro Visualizaciones</span>
                         </NavLink>
                     </>
                 ) : null}
 
-                {currentUser?.roles?.includes('familia') && (
+                {(currentUser?.roles || []).includes('familia') && (
                     <NavLink
                         to="/mis-hijos"
                         onClick={handleLinkClick}

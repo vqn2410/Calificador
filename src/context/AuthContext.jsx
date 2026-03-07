@@ -35,29 +35,46 @@ export function AuthProvider({ children }) {
 
                     let userData = { roles: ['familia'] };
                     if (docSnap.exists()) {
-                        const data = docSnap.data();
-                        userData = data;
-                        // Transformar el viejo "role" string a "roles" array si fuera necesario
-                        if (data.role && !data.roles) {
-                            userData.roles = [data.role];
-                            if (data.role === 'docente_curso') userData.roles.push('docente');
-                        }
-                        if (!userData.roles) userData.roles = ['familia'];
-                    }
-
-                    // Forzar rol de administrador para el usuario indicado
-                    if (user.email === 'vergaranicolas209@gmail.com') {
-                        if (!userData.roles) userData.roles = [];
-                        if (!userData.roles.includes('administrador')) userData.roles.push('administrador');
-                        if (!userData.displayName) {
-                            userData.displayName = 'Administrador General';
+                        userData = docSnap.data();
+                        if (userData.role && !userData.roles) {
+                            userData.roles = [userData.role];
                         }
                     }
 
-                    setCurrentUser({ ...user, ...userData });
+                    if (!userData.roles) userData.roles = ['familia'];
+
+                    // Admin override
+                    if (user.email === 'vergaranicolas209@gmail.com' && !userData.roles.includes('administrador')) {
+                        userData.roles.push('administrador');
+                    }
+
+                    const finalRoles = Array.isArray(userData.roles) ? userData.roles : [userData.roles];
+
+                    // Check Global Config for Family Access
+                    const configRef = doc(db, 'config', 'appSettings');
+                    const configSnap = await getDoc(configRef);
+                    const allowFamily = configSnap.exists() ? configSnap.data().allowFamilyAccess : true;
+
+                    const isStaff = finalRoles.some(r => ['docente', 'docente_area', 'administrador', 'equipo_conduccion'].includes(r));
+
+                    if (!allowFamily && !isStaff) {
+                        // User is ONLY family and access is restricted
+                        await signOut(auth);
+                        setCurrentUser(null);
+                        setLoading(false);
+                        return;
+                    }
+
+                    setCurrentUser({
+                        uid: user.uid,
+                        email: user.email,
+                        displayName: userData.displayName || user.displayName || 'Usuario',
+                        ...userData,
+                        roles: finalRoles
+                    });
                 } catch (error) {
                     console.error("Error fetching user data", error);
-                    setCurrentUser(user);
+                    setCurrentUser({ uid: user.uid, email: user.email, roles: ['familia'] });
                 }
             } else {
                 setCurrentUser(null);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { User, ClipboardList, PenTool, Save, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -11,6 +11,7 @@ export default function CourseDetails() {
     const [students, setStudents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [allowEdit, setAllowEdit] = useState(true);
 
     const [trimestre, setTrimestre] = useState('1er Trimestre');
     const [grades, setGrades] = useState({});
@@ -28,6 +29,12 @@ export default function CourseDetails() {
 
     const isStrictAreaTeacher = currentUser?.roles?.includes('docente_area') && (!currentUser.roles.includes('docente') && !currentUser.roles.includes('administrador'));
 
+    const teacherFull = currentUser?.displayName || `${currentUser?.nombre || ''} ${currentUser?.apellido || ''}`.trim() || 'Docente';
+    const teacherRoleStr = currentUser?.roles?.includes('equipo_conduccion')
+        ? 'Equipo de Conducción'
+        : (currentUser?.roles?.includes('docente_area') ? `Docente de Área: ${currentUser.materiaEspecial}` : 'Docente');
+    const signature = `${teacherFull} - ${teacherRoleStr}`;
+
     if (isStrictAreaTeacher && currentUser?.materiaEspecial) {
         // Enforce strict visibility: Area teachers only see their own subjects
         subjects = [currentUser.materiaEspecial];
@@ -36,6 +43,14 @@ export default function CourseDetails() {
     const fetchStudents = async () => {
         setLoading(true);
         try {
+            // Fetch Global Config
+            const configRef = doc(db, 'config', 'appSettings');
+            const configSnap = await getDoc(configRef);
+            const canEditGlobal = configSnap.exists() ? configSnap.data().allowTeacherDataEntry : true;
+
+            const isControlUser = currentUser?.roles?.some(r => ['administrador', 'equipo_conduccion'].includes(r));
+            setAllowEdit(canEditGlobal || isControlUser);
+
             const q = query(collection(db, 'estudiantes'), where('cursoId', '==', courseId));
             const querySnapshot = await getDocs(q);
             const stData = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -89,10 +104,18 @@ export default function CourseDetails() {
     };
 
     const handleCommentChange = (studentId, value) => {
-        setGeneralComments(prev => ({
-            ...prev,
-            [studentId]: value
-        }));
+        setGeneralComments(prev => {
+            const currentVal = prev[studentId] || {};
+            const asObj = typeof currentVal === 'string' ? { legacy: { text: currentVal, signature: 'Observación General' } } : currentVal;
+
+            return {
+                ...prev,
+                [studentId]: {
+                    ...asObj,
+                    [currentUser.uid]: { text: value, signature: signature, timestamp: new Date().toISOString() }
+                }
+            };
+        });
     };
 
     const handleInasistenciasChange = (studentId, value) => {
@@ -156,6 +179,11 @@ export default function CourseDetails() {
                         Asignación de Calificaciones
                     </h1>
                     <p style={{ margin: 0 }}>Curso: <strong>{grado}° "{seccion}"</strong> - Sistema: {isConceptual ? 'Conceptual' : 'Numérico'}</p>
+                    {!allowEdit && (
+                        <div className="badge badge-warning" style={{ marginTop: '0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Lock size={14} /> MODO LECTURA: La carga de notas está bloqueada por administración.
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex gap-4">
@@ -174,10 +202,41 @@ export default function CourseDetails() {
 
                     <button className="btn btn-outline" onClick={() => window.print()}>
                         <ClipboardList size={18} />
-                        Imprimir / Descargar
+                        Descargar Planilla
                     </button>
                 </div>
             </div>
+
+            <style>{`
+                .sheet-input {
+                    text-align: center !important;
+                    padding: 0.5rem !important;
+                    font-weight: 700;
+                }
+                .obs-field {
+                    min-width: 250px;
+                    font-size: 0.85rem;
+                    padding: 0.6rem;
+                    border: 1px dashed var(--color-primary);
+                    background: transparent;
+                    width: 100%;
+                }
+                .other-obs {
+                    background: #f8fafc;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 4px;
+                    padding: 8px;
+                    margin-bottom: 8px;
+                    font-size: 0.75rem;
+                    color: #475569;
+                }
+                .obs-author {
+                    font-weight: 700;
+                    color: var(--color-primary);
+                    display: block;
+                    margin-top: 4px;
+                }
+            `}</style>
 
             <div className="card" style={{ padding: '0' }}>
                 <div className="print-only" style={{ border: '2px solid black', borderBottom: 'none', padding: '10px' }}>
@@ -233,28 +292,28 @@ export default function CourseDetails() {
                                         <td key={i} style={{ padding: '1rem' }}>
                                             {isConceptual ? (
                                                 <select
-                                                    className="input-field"
-                                                    style={{ padding: '0.25rem 0.5rem', minWidth: '120px', cursor: (isStrictAreaTeacher && currentUser?.materiaEspecial !== sub) ? 'not-allowed' : 'pointer' }}
+                                                    className="input-field sheet-input"
+                                                    style={{ minWidth: '80px', cursor: (!allowEdit || (isStrictAreaTeacher && currentUser?.materiaEspecial !== sub)) ? 'not-allowed' : 'pointer' }}
                                                     value={grades[st.id]?.[sub] || ''}
                                                     onChange={(e) => handleGradeChange(st.id, sub, e.target.value)}
-                                                    disabled={isStrictAreaTeacher && currentUser?.materiaEspecial !== sub}
+                                                    disabled={!allowEdit || (isStrictAreaTeacher && currentUser?.materiaEspecial !== sub)}
                                                 >
                                                     <option value="" disabled>-</option>
-                                                    <option value="Sobresaliente">Sobresaliente</option>
-                                                    <option value="Muy bueno">Muy bueno</option>
-                                                    <option value="Bueno">Bueno</option>
-                                                    <option value="Regular">Regular</option>
-                                                    <option value="Desaprobado">Desaprobado</option>
+                                                    <option value="Sobresaliente">S</option>
+                                                    <option value="Muy bueno">MB</option>
+                                                    <option value="Bueno">B</option>
+                                                    <option value="Regular">R</option>
+                                                    <option value="Desaprobado">D</option>
                                                 </select>
                                             ) : (
                                                 <input
-                                                    className="input-field"
+                                                    className="input-field sheet-input"
                                                     type="number" min="1" max="10"
                                                     placeholder="-"
-                                                    style={{ width: '60px', padding: '0.25rem 0.5rem', cursor: (isStrictAreaTeacher && currentUser?.materiaEspecial !== sub) ? 'not-allowed' : 'text' }}
+                                                    style={{ width: '60px', cursor: (!allowEdit || (isStrictAreaTeacher && currentUser?.materiaEspecial !== sub)) ? 'not-allowed' : 'text' }}
                                                     value={grades[st.id]?.[sub] || ''}
                                                     onChange={(e) => handleGradeChange(st.id, sub, e.target.value)}
-                                                    disabled={isStrictAreaTeacher && currentUser?.materiaEspecial !== sub}
+                                                    disabled={!allowEdit || (isStrictAreaTeacher && currentUser?.materiaEspecial !== sub)}
                                                 />
                                             )}
                                         </td>
@@ -262,32 +321,44 @@ export default function CourseDetails() {
                                     <td style={{ padding: '1rem', textAlign: 'center' }}>
                                         <input
                                             className="input-field mb-0 text-center"
-                                            style={{ width: '50px', padding: '0.25rem' }}
+                                            style={{ width: '50px', padding: '0.25rem', cursor: !allowEdit ? 'not-allowed' : 'text' }}
                                             type="number" min="0"
                                             value={diasHabiles[st.id] || ''}
                                             onChange={(e) => handleDiasHabilesChange(st.id, e.target.value)}
+                                            disabled={!allowEdit}
                                         />
                                     </td>
                                     <td style={{ padding: '1rem', textAlign: 'center' }}>
                                         <input
                                             className="input-field mb-0 text-center"
-                                            style={{ width: '50px', padding: '0.25rem' }}
+                                            style={{ width: '50px', padding: '0.25rem', cursor: !allowEdit ? 'not-allowed' : 'text' }}
                                             type="number" min="0" step="0.5"
                                             value={inasistencias[st.id] || ''}
                                             onChange={(e) => handleInasistenciasChange(st.id, e.target.value)}
+                                            disabled={!allowEdit}
                                         />
                                     </td>
                                     <td style={{ padding: '1rem' }}>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex flex-col gap-2">
+                                            {/* Existing observations from other teachers */}
+                                            {Object.entries(generalComments[st.id] || {}).map(([uid, obs]) => (
+                                                uid !== currentUser?.uid && obs?.text && (
+                                                    <div key={uid} className="other-obs">
+                                                        "{obs.text}"
+                                                        <span className="obs-author">-{obs.signature}</span>
+                                                    </div>
+                                                )
+                                            ))}
+
+                                            {/* Current teacher observation input */}
                                             <input
-                                                className="input-field flex-1"
-                                                placeholder="Apreciación (opcional)..."
-                                                style={{ minWidth: '200px', padding: '0.4rem', cursor: isStrictAreaTeacher ? 'not-allowed' : 'text' }}
-                                                value={generalComments[st.id] || ''}
+                                                className="input-field obs-field"
+                                                placeholder={allowEdit ? `Tu comentario como ${teacherRoleStr}...` : "Edición bloqueada"}
+                                                value={generalComments[st.id]?.[currentUser?.uid]?.text || (typeof generalComments[st.id] === 'string' ? generalComments[st.id] : '')}
                                                 onChange={(e) => handleCommentChange(st.id, e.target.value)}
-                                                disabled={isStrictAreaTeacher}
+                                                disabled={!allowEdit}
+                                                style={{ cursor: !allowEdit ? 'not-allowed' : 'text' }}
                                             />
-                                            {isStrictAreaTeacher && <Lock className="no-print" size={16} color="var(--color-text-muted)" title="Comentarios generales reservados al docente titular." />}
                                         </div>
                                     </td>
                                 </tr>
@@ -334,15 +405,34 @@ export default function CourseDetails() {
                 )}
 
                 {students.length > 0 && (
-                    <div className="mt-6 flex justify-end">
+                    <div className="mt-6 flex justify-end no-print">
                         <button
                             className="btn btn-secondary flex items-center gap-2"
                             onClick={handleSaveGrades}
-                            disabled={saving}
+                            disabled={saving || !allowEdit}
                         >
                             <Save size={18} />
-                            {saving ? 'Guardando en BD...' : 'Guardar Calificaciones Trimestrales'}
+                            {saving ? 'Guardando en BD...' : !allowEdit ? 'Carga Bloqueada' : 'Guardar Calificaciones Trimestrales'}
                         </button>
+                    </div>
+                )}
+
+                {isConceptual && (
+                    <div style={{ marginTop: '1rem', borderTop: '2px solid #e2e8f0', paddingTop: '1rem' }}>
+                        <div style={{ fontSize: '0.8rem', color: '#4b5563', fontWeight: 'bold', marginBottom: '0.5rem', textAlign: 'center' }}>
+                            REFERENCIAS DE CALIFICACIÓN
+                        </div>
+                        <table style={{ width: '100%', maxWidth: '600px', margin: '0 auto', fontSize: '0.75rem', borderCollapse: 'collapse', textAlign: 'center' }}>
+                            <tbody>
+                                <tr>
+                                    <td style={{ fontWeight: 'bold', padding: '4px', border: '1px solid #e2e8f0' }}>S</td><td style={{ textAlign: 'left', padding: '4px', border: '1px solid #e2e8f0' }}>Sobresaliente</td>
+                                    <td style={{ fontWeight: 'bold', padding: '4px', border: '1px solid #e2e8f0' }}>MB</td><td style={{ textAlign: 'left', padding: '4px', border: '1px solid #e2e8f0' }}>Muy bueno</td>
+                                    <td style={{ fontWeight: 'bold', padding: '4px', border: '1px solid #e2e8f0' }}>B</td><td style={{ textAlign: 'left', padding: '4px', border: '1px solid #e2e8f0' }}>Bueno</td>
+                                    <td style={{ fontWeight: 'bold', padding: '4px', border: '1px solid #e2e8f0' }}>R</td><td style={{ textAlign: 'left', padding: '4px', border: '1px solid #e2e8f0' }}>Regular</td>
+                                    <td style={{ fontWeight: 'bold', padding: '4px', border: '1px solid #e2e8f0' }}>D</td><td style={{ textAlign: 'left', padding: '4px', border: '1px solid #e2e8f0' }}>Desaprobado</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 )}
             </div>

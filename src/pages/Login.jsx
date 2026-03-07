@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { collection, query, where, getDocs, getDoc, doc } from 'firebase/firestore';
+import { auth, db } from '../config/firebase';
+import { signOut } from 'firebase/auth';
 import { GraduationCap, LogIn } from 'lucide-react';
 
 export default function Login() {
@@ -19,19 +20,59 @@ export default function Login() {
             setError('');
             setLoading(true);
 
+            // 1. Check App Settings
+            const configRef = doc(db, 'config', 'appSettings');
+            const configSnap = await getDoc(configRef);
+            const allowFamily = configSnap.exists() ? configSnap.data().allowFamilyAccess : true;
+
             let finalEmail = email.trim();
+            let isDniLogin = false;
+
             if (!finalEmail.includes('@')) {
-                // If it's a DNI, look up the real email from Firestore
-                const q = query(collection(db, 'docentes'), where('dni', '==', finalEmail));
+                isDniLogin = true;
+                const cleanDNI = finalEmail.replace(/[\.\s-]/g, '');
+                const q = query(collection(db, 'docentes'), where('dni', '==', cleanDNI));
                 const snap = await getDocs(q);
                 if (!snap.empty) {
-                    finalEmail = snap.docs[0].data().email;
+                    const dData = snap.docs[0].data();
+                    finalEmail = dData.email;
+
+                    // Si es personal institucional usando DNI, no lo tratamos como login de familia restringido
+                    const roles = dData.roles || (dData.role ? [dData.role] : ['familia']);
+                    const isStaff = roles.some(r => ['docente', 'docente_area', 'administrador', 'equipo_conduccion'].includes(r));
+                    if (isStaff) isDniLogin = false;
                 } else {
                     finalEmail = `${finalEmail}@familia.com`;
                 }
             }
 
-            await login(finalEmail, password);
+            if (!allowFamily && (isDniLogin || finalEmail.endsWith('@familia.com'))) {
+                setError('El acceso para Familias está temporalmente deshabilitado por el administrador.');
+                setLoading(false);
+                return;
+            }
+
+            const userCredential = await login(finalEmail, password);
+            const user = userCredential.user;
+
+            // 2. Double check role after login in case they aren't @familia but only have family role
+            // AuthContext will sign them out, but we want to show a message here
+            const docRef = doc(db, 'docentes', user.uid);
+            const docSnap = await getDoc(docRef);
+            let roles = ['familia'];
+            if (docSnap.exists()) {
+                roles = docSnap.data().roles || (docSnap.data().role ? [docSnap.data().role] : ['familia']);
+            }
+
+            const isStaff = roles.some(r => ['docente', 'docente_area', 'administrador', 'equipo_conduccion'].includes(r));
+
+            if (!allowFamily && !isStaff) {
+                await signOut(auth);
+                setError('El acceso para Familias está deshabilitado. Solo Personal Institucional puede ingresar.');
+                setLoading(false);
+                return;
+            }
+
             navigate('/');
         } catch (err) {
             setError('Error al iniciar sesión. Verifique sus credenciales.');

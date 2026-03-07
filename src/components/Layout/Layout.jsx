@@ -36,12 +36,14 @@ export default function Layout() {
 
             <main className="app-main fade-in">
                 <Outlet />
-                <footer className="app-footer">Designed by NVproductions</footer>
+                <footer className="app-footer">
+                    <span>Exportado desde Sistema de Calificaciones de la E.P N° 6 "Rafael Obligado"</span>
+                </footer>
             </main>
 
             {/* Mobile Bottom Navigation */}
             <nav className="mobile-bottom-nav no-print">
-                {(!currentUser?.roles?.includes('familia') || currentUser?.roles?.length > 1) && (
+                {(!(currentUser?.roles || []).includes('familia') || (currentUser?.roles || []).length > 1) && (
                     <>
                         <NavLink to="/" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}>
                             <LayoutDashboard size={20} />
@@ -51,10 +53,14 @@ export default function Layout() {
                             <Users size={20} />
                             <span>Cursos</span>
                         </NavLink>
+                        <NavLink to="/mis-estudiantes" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}>
+                            <Users size={20} />
+                            <span>Alumnos</span>
+                        </NavLink>
                     </>
                 )}
 
-                {currentUser?.roles?.includes('familia') && (
+                {(currentUser?.roles || []).includes('familia') && (
                     <NavLink to="/mis-hijos" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}>
                         <Users size={20} />
                         <span>Mis Hijos</span>

@@ -11,7 +11,8 @@ const COLORS = ['#044b7f', '#f8981d', '#0d6db3', '#008f5e', '#ef4444', '#f59e0b'
 export default function Dashboard() {
     const { currentUser } = useAuth();
 
-    const isFamilyOnly = currentUser?.roles?.includes('familia') && !currentUser?.roles?.some(r => ['docente', 'docente_area', 'administrador', 'equipo_conduccion'].includes(r));
+    const rolesArr = currentUser?.roles || [];
+    const isFamilyOnly = rolesArr.includes('familia') && !rolesArr.some(r => ['docente', 'docente_area', 'administrador', 'equipo_conduccion'].includes(r));
     if (isFamilyOnly) {
         return <Navigate to="/mis-hijos" replace />;
     }
@@ -24,7 +25,7 @@ export default function Dashboard() {
     const [chartData, setChartData] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    const isAdmin = currentUser?.roles?.includes('administrador') || currentUser?.roles?.includes('equipo_conduccion');
+    const isAdmin = rolesArr.includes('administrador') || rolesArr.includes('equipo_conduccion');
     const myCourses = currentUser?.cursosAsignados || [];
 
     useEffect(() => {

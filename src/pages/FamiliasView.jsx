@@ -18,9 +18,18 @@ export default function FamiliasView() {
             }
 
             try {
-                // Fetch students matching the DNIS
-                // Firestore 'in' query has a limit of 10 items, which is more than enough for children DNIs
-                const dnisBatch = currentUser.hijosDnis.slice(0, 10);
+                // Fetch students matching the DNIs
+                // For each DNI in children, we check both dot-formatted and clean formats
+                let searchDnis = [];
+                currentUser.hijosDnis.forEach(d => {
+                    const clean = String(d).replace(/[\.\s-]/g, '');
+                    const dotted = clean.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                    searchDnis.push(clean);
+                    searchDnis.push(dotted);
+                });
+
+                // Unique search terms, max 10 for Firestore 'in' limitation
+                const dnisBatch = [...new Set(searchDnis)].slice(0, 10);
                 const q = query(collection(db, 'estudiantes'), where('dni', 'in', dnisBatch));
                 const snap = await getDocs(q);
 

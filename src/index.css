@@ -373,6 +373,17 @@ p {
   }
 }
 
+.vertical-text {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  text-align: center;
+  vertical-align: middle;
+  white-space: normal;
+  height: 140px;
+  padding: 5px !important;
+  font-size: 0.8em;
+}
+
 /* Print Styles */
 .print-only {
   display: none !important;
@@ -380,12 +391,12 @@ p {
 
 @media print {
   @page {
-    size: A4 landscape;
+    size: A4 portrait;
     margin: 1cm;
   }
 
   .app-sidebar,
-  button,
+  button:not(.btn-secondary),
   .no-print {
     display: none !important;
   }
@@ -457,14 +468,7 @@ p {
   }
 
   .vertical-text {
-    writing-mode: vertical-rl;
-    transform: rotate(180deg);
-    text-align: center;
-    vertical-align: middle;
-    white-space: normal;
     height: 120px;
-    padding: 5px !important;
-    font-size: 0.75em;
   }
 
   .input-field {

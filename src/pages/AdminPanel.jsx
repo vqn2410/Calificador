@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { collection, getDocs, addDoc, updateDoc, doc, setDoc, deleteDoc, query, where } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, doc, setDoc, deleteDoc, query, where, getDoc } from 'firebase/firestore';
 import { db, firebaseConfig } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
-import { ShieldCheck, UserPlus, Users, GraduationCap, ArrowRightCircle, RefreshCcw, CheckSquare, Trash2, Edit, FileText, UploadCloud, Activity } from 'lucide-react';
+import { ShieldCheck, UserPlus, Users, GraduationCap, ArrowRightCircle, RefreshCcw, CheckSquare, Trash2, Edit, FileText, UploadCloud, Activity, Settings, Lock, Unlock, PenTool } from 'lucide-react';
 import InformesConduccion from './InformesConduccion';
 
 const adminApp = initializeApp(firebaseConfig, 'AdminSecondaryApp');
@@ -40,6 +40,10 @@ export default function AdminPanel() {
     const [logs, setLogs] = useState([]);
     const [loadingLogs, setLoadingLogs] = useState(false);
 
+    // App Settings
+    const [appSettings, setAppSettings] = useState({ allowFamilyAccess: true, allowTeacherDataEntry: true });
+    const [savingSettings, setSavingSettings] = useState(false);
+
     // Generic states
     const [msg, setMsg] = useState({ type: '', text: '' });
 
@@ -47,6 +51,7 @@ export default function AdminPanel() {
         if (activeTab === 'docentes' && docentes.length === 0) fetchDocentes();
         if (activeTab === 'estudiantes' && estudiantes.length === 0) fetchEstudiantes();
         if (activeTab === 'actividad' && logs.length === 0) fetchLogs();
+        if (activeTab === 'config') fetchAppSettings();
     }, [activeTab]);
 
     const logActivity = async (action, details) => {
@@ -62,6 +67,26 @@ export default function AdminPanel() {
         }
     };
 
+    const handleClearLogs = async () => {
+        if (!window.confirm("¿Estás SEGURO que deseas borrar TODO el historial de movimientos? Esta acción es definitiva y no se puede deshacer.")) return;
+
+        setSavingSettings(true);
+        try {
+            const snap = await getDocs(collection(db, 'logs'));
+            const deletePromises = snap.docs.map(docSnap => deleteDoc(doc(db, 'logs', docSnap.id)));
+            await Promise.all(deletePromises);
+
+            await logActivity('Limpieza de Historial', 'Se borraron todos los logs de actividad por administración.');
+            showMessage('success', 'Historial de movimientos vaciado correctamente.');
+            setLogs([]);
+        } catch (err) {
+            console.error(err);
+            showMessage('error', 'Error al intentar vaciar el historial.');
+        } finally {
+            setSavingSettings(false);
+        }
+    };
+
     const fetchLogs = async () => {
         setLoadingLogs(true);
         try {
@@ -71,6 +96,53 @@ export default function AdminPanel() {
             setLogs(data);
         } catch (err) { }
         setLoadingLogs(false);
+    };
+
+    const fetchAppSettings = async () => {
+        try {
+            const docRef = doc(db, 'config', 'appSettings');
+            const snap = await getDoc(docRef); // I need to import getDoc
+            if (snap.exists()) {
+                setAppSettings(snap.data());
+            } else {
+                // If not exists, create default
+                await setDoc(docRef, { allowFamilyAccess: true });
+            }
+        } catch (err) {
+            console.error("Error fetching app settings:", err);
+        }
+    };
+
+    const handleToggleFamilyAccess = async () => {
+        setSavingSettings(true);
+        try {
+            const newValue = !appSettings.allowFamilyAccess;
+            const docRef = doc(db, 'config', 'appSettings');
+            await setDoc(docRef, { allowFamilyAccess: newValue }, { merge: true });
+            setAppSettings({ ...appSettings, allowFamilyAccess: newValue });
+            await logActivity('Configuración App', `Se ${newValue ? 'HABILITÓ' : 'DESHABILITÓ'} el acceso a Familias`);
+            showMessage('success', `Acceso de Familias ${newValue ? 'Habilitado' : 'Deshabilitado'} correctamente.`);
+        } catch (err) {
+            showMessage('error', 'Error al actualizar configuración.');
+        } finally {
+            setSavingSettings(false);
+        }
+    };
+
+    const handleToggleTeacherDataEntry = async () => {
+        setSavingSettings(true);
+        try {
+            const newValue = !appSettings.allowTeacherDataEntry;
+            const docRef = doc(db, 'config', 'appSettings');
+            await setDoc(docRef, { allowTeacherDataEntry: newValue }, { merge: true });
+            setAppSettings({ ...appSettings, allowTeacherDataEntry: newValue });
+            await logActivity('Configuración App', `Se ${newValue ? 'HABILITÓ' : 'BLOQUEÓ'} la Carga de Notas para Docentes`);
+            showMessage('success', `Carga de Notas ${newValue ? 'Habilitada' : 'Bloqueada (Solo Lectura)'} correctamente.`);
+        } catch (err) {
+            showMessage('error', 'Error al actualizar configuración.');
+        } finally {
+            setSavingSettings(false);
+        }
     };
 
     const fetchDocentes = async () => {
@@ -125,15 +197,18 @@ export default function AdminPanel() {
     };
 
     const handleDeleteDocente = async (id, nombre) => {
-        if (window.confirm(`¿Estás seguro que deseas ELIMINAR el registro del usuario ${nombre}? Esta acción es irreversible.`)) {
-            try {
-                await deleteDoc(doc(db, 'docentes', id));
-                await logActivity('Eliminación Docente', `Se eliminó perfil de ${nombre}`);
-                showMessage('success', 'Docente eliminado correctamente de la base de datos institucinal.');
-                fetchDocentes();
-            } catch (e) {
-                showMessage('error', 'Error al eliminar docente.');
-            }
+        const safeNombre = nombre || 'este docente';
+        const confirmed = window.confirm(`¿Estás seguro que deseas ELIMINAR el registro de ${safeNombre}? Esta acción es irreversible.`);
+        if (!confirmed) return;
+
+        try {
+            await deleteDoc(doc(db, 'docentes', id));
+            await logActivity('Eliminación Docente', `Se eliminó perfil de ${safeNombre}`);
+            showMessage('success', 'Usuario eliminado correctamente de la base de datos.');
+            fetchDocentes();
+        } catch (e) {
+            console.error("Delete docente error:", e);
+            showMessage('error', 'Fallo técnico: No se pudo eliminar el docente.');
         }
     };
 
@@ -306,7 +381,7 @@ export default function AdminPanel() {
         }
     };
 
-    const handleEditEstudiante = (est) => {
+    const handleEditEstudiante = async (est) => {
         setEditingEstudiante(est.id);
 
         let nom = est.nombre.split(',')[1]?.trim() || '';
@@ -314,7 +389,7 @@ export default function AdminPanel() {
         let gr = est.cursoId ? est.cursoId.charAt(0) : '';
         let sec = est.cursoId ? est.cursoId.charAt(1) : '';
 
-        setNewEstudiante({
+        const initialForm = {
             nombre: nom,
             apellido: ape,
             dni: est.dni || '',
@@ -327,9 +402,32 @@ export default function AdminPanel() {
             famTelefono: '',
             famCorreo: '',
             famParentesco: est.famFiliacion?.parentesco || 'Madre/Padre'
-        });
+        };
+
+        setNewEstudiante(initialForm);
+
+        // Intento de cruce dinámico para traer datos del familiar responsable
+        if (est.famFiliacion?.dni) {
+            try {
+                const q = query(collection(db, 'docentes'), where('dni', '==', est.famFiliacion.dni));
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                    const famData = snap.docs[0].data();
+                    setNewEstudiante(prev => ({
+                        ...prev,
+                        famNombre: famData.nombre || '',
+                        famApellido: famData.apellido || '',
+                        famTelefono: famData.telefono || '',
+                        famCorreo: famData.email || ''
+                    }));
+                }
+            } catch (err) {
+                console.error("Error fetching familiar details for edit:", err);
+            }
+        }
+
         window.scrollTo({ top: 0, behavior: 'smooth' });
-        showMessage('info', 'Editando estudiante. Solo para el titular modifique datos. Rellenar datos del parentesco.');
+        showMessage('info', 'Modificando ficha de alumno. Los datos del familiar se han precargado desde su cuenta de usuario.');
     };
 
     const cancelEditEstudiante = () => {
@@ -338,15 +436,18 @@ export default function AdminPanel() {
     };
 
     const handleDeleteEstudiante = async (id, nombre) => {
-        if (window.confirm(`¿Seguro deseas ELIMINAR del sistema a ${nombre}?`)) {
-            try {
-                await deleteDoc(doc(db, 'estudiantes', id));
-                await logActivity('Baja de Estudiante', `Baja física del alumno ${nombre}`);
-                showMessage('success', 'Estudiante eliminado del padrón.');
-                fetchEstudiantes();
-            } catch (e) {
-                showMessage('error', 'Error eliminando estudiante.');
-            }
+        const safeNombre = nombre || 'este estudiante';
+        const confirmed = window.confirm(`¿Seguro deseas ELIMINAR del sistema a ${safeNombre}?`);
+        if (!confirmed) return;
+
+        try {
+            await deleteDoc(doc(db, 'estudiantes', id));
+            await logActivity('Baja de Estudiante', `Baja física del alumno ${safeNombre}`);
+            showMessage('success', 'Estudiante eliminado del padrón.');
+            fetchEstudiantes();
+        } catch (e) {
+            console.error("Delete estudiante error:", e);
+            showMessage('error', 'Error eliminando estudiante: ' + e.message);
         }
     };
 
@@ -432,7 +533,7 @@ export default function AdminPanel() {
     };
 
     const filteredEstudiantes = estudiantes.filter(e => {
-        const matchName = e.nombre.toLowerCase().includes(searchStudentTerm.toLowerCase()) || e.dni.includes(searchStudentTerm);
+        const matchName = e.nombre.toLowerCase().includes(searchStudentTerm.toLowerCase()) || String(e.dni || '').includes(searchStudentTerm);
         const matchCourse = searchStudentCourse === '' || e.cursoId === searchStudentCourse;
         return matchName && matchCourse;
     });
@@ -538,6 +639,12 @@ export default function AdminPanel() {
                     onClick={() => setActiveTab('informes_c')}
                 >
                     <FileText size={18} /> Informes de Calificación
+                </button>
+                <button
+                    className={`btn ${activeTab === 'config' ? 'btn-primary' : 'btn-outline'}`}
+                    onClick={() => setActiveTab('config')}
+                >
+                    <Settings size={18} /> Configuración / Acceso
                 </button>
             </div>
 
@@ -676,7 +783,12 @@ export default function AdminPanel() {
                                                 <button onClick={() => handleEditDocente(d)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', marginRight: '0.5rem' }} title="Editar">
                                                     <Edit size={16} />
                                                 </button>
-                                                <button onClick={() => handleDeleteDocente(d.id, d.displayName)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', borderColor: '#fca5a5', color: '#ef4444' }} title="Eliminar">
+                                                <button
+                                                    onClick={(evt) => { evt.stopPropagation(); handleDeleteDocente(d.id, d.displayName); }}
+                                                    className="btn btn-outline"
+                                                    style={{ padding: '0.25rem 0.5rem', borderColor: '#fca5a5', color: '#ef4444' }}
+                                                    title="Eliminar"
+                                                >
                                                     <Trash2 size={16} />
                                                 </button>
                                             </td>
@@ -882,7 +994,12 @@ export default function AdminPanel() {
                                                 <button onClick={() => handleEditEstudiante(e)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', marginRight: '0.5rem' }} title="Editar">
                                                     <Edit size={16} />
                                                 </button>
-                                                <button onClick={() => handleDeleteEstudiante(e.id, e.nombre)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', borderColor: '#fca5a5', color: '#ef4444' }} title="Eliminar">
+                                                <button
+                                                    onClick={(evt) => { evt.stopPropagation(); handleDeleteEstudiante(e.id, e.nombre); }}
+                                                    className="btn btn-outline"
+                                                    style={{ padding: '0.25rem 0.5rem', borderColor: '#fca5a5', color: '#ef4444' }}
+                                                    title="Eliminar"
+                                                >
                                                     <Trash2 size={16} />
                                                 </button>
                                             </td>
@@ -897,9 +1014,21 @@ export default function AdminPanel() {
             )}
             {activeTab === 'actividad' && (
                 <div className="card w-full">
-                    <h3 className="mb-4 flex items-center gap-2">
-                        <Activity color="var(--color-primary)" />
-                        Registro Histórico de Movimientos
+                    <h3 className="mb-4 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                            <Activity color="var(--color-primary)" />
+                            Registro Histórico de Movimientos
+                        </div>
+                        {logs.length > 0 && (
+                            <button
+                                onClick={handleClearLogs}
+                                className="btn btn-outline"
+                                style={{ borderColor: '#fca5a5', color: '#ef4444', fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
+                                disabled={savingSettings}
+                            >
+                                <Trash2 size={14} /> Vaciar Historial
+                            </button>
+                        )}
                     </h3>
                     <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
                         {loadingLogs ? (
@@ -936,6 +1065,85 @@ export default function AdminPanel() {
 
             {activeTab === 'informes_c' && (
                 <InformesConduccion />
+            )}
+
+            {activeTab === 'config' && (
+                <div className="card w-full">
+                    <h3 className="mb-4 flex items-center gap-2">
+                        <Settings color="var(--color-primary)" />
+                        Configuración de Acceso y Visibilidad
+                    </h3>
+                    <p className="mb-8 color-text-muted">Utilice esta sección para controlar el acceso global de los usuarios externos a la plataforma.</p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="card" style={{ border: appSettings.allowFamilyAccess ? '1px solid var(--color-success)' : '1px solid var(--color-error)', backgroundColor: appSettings.allowFamilyAccess ? 'rgba(16,185,129,0.02)' : 'rgba(239,68,68,0.02)' }}>
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h4 style={{ margin: 0, fontSize: '1.1rem', color: appSettings.allowFamilyAccess ? 'var(--color-success)' : 'var(--color-error)' }} className="flex items-center gap-2">
+                                        {appSettings.allowFamilyAccess ? <Unlock size={20} /> : <Lock size={20} />}
+                                        Acceso de Usuarios "Familias"
+                                    </h4>
+                                    <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem' }}>
+                                        {appSettings.allowFamilyAccess
+                                            ? 'Actualmente, los familiares pueden ingresar para ver los boletines.'
+                                            : 'El acceso para familiares está BLOQUEADO temporalmente.'}
+                                    </p>
+                                </div>
+                                <button
+                                    className={`btn ${appSettings.allowFamilyAccess ? 'btn-secondary' : 'btn-primary'}`}
+                                    onClick={handleToggleFamilyAccess}
+                                    disabled={savingSettings}
+                                    style={{ padding: '0.5rem 1rem' }}
+                                >
+                                    {savingSettings ? 'Procesando...' : appSettings.allowFamilyAccess ? 'Deshabilitar Acceso' : 'Habilitar Acceso'}
+                                </button>
+                            </div>
+                            <div className="badge" style={{ backgroundColor: appSettings.allowFamilyAccess ? '#d1fae5' : '#fee2e2', color: appSettings.allowFamilyAccess ? '#065f46' : '#991b1b' }}>
+                                Estado: {appSettings.allowFamilyAccess ? 'PERSONAL HABILITADO' : 'SISTEMA CERRADO'}
+                            </div>
+                        </div>
+
+                        <div className="card" style={{ border: appSettings.allowTeacherDataEntry ? '1px solid var(--color-primary)' : '1px solid var(--color-warning)', backgroundColor: appSettings.allowTeacherDataEntry ? 'rgba(4,75,127,0.02)' : 'rgba(245,158,11,0.02)' }}>
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h4 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--color-primary)' }} className="flex items-center gap-2">
+                                        <PenTool size={20} />
+                                        Carga de Datos (Docentes)
+                                    </h4>
+                                    <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem' }}>
+                                        {appSettings.allowTeacherDataEntry
+                                            ? 'Los docentes pueden cargar y modificar calificaciones.'
+                                            : 'SISTEMA EN SOLO LECTURA: Docentes no pueden modificar datos.'}
+                                    </p>
+                                </div>
+                                <button
+                                    className={`btn ${appSettings.allowTeacherDataEntry ? 'btn-outline' : 'btn-primary'}`}
+                                    onClick={handleToggleTeacherDataEntry}
+                                    disabled={savingSettings}
+                                    style={{ padding: '0.5rem 1rem' }}
+                                >
+                                    {appSettings.allowTeacherDataEntry ? 'Bloquear Edición' : 'Habilitar Edición'}
+                                </button>
+                            </div>
+                            <div className="badge" style={{ backgroundColor: appSettings.allowTeacherDataEntry ? '#d1fae5' : '#fef3c7', color: appSettings.allowTeacherDataEntry ? '#065f46' : '#92400e' }}>
+                                Estado: {appSettings.allowTeacherDataEntry ? 'EDICIÓN HABILITADA' : 'MODO SOLO LECTURA'}
+                            </div>
+                        </div>
+
+                        <div className="card" style={{ border: '1px solid var(--color-border)' }}>
+                            <h4 className="flex items-center gap-2 mb-2"><RefreshCcw size={18} /> Mantenimiento de Ciclo</h4>
+                            <p style={{ fontSize: '0.85rem' }} className="mb-4">Limpieza de registros de auditoría y preparación para el cierre de ciclo.</p>
+                            <button
+                                onClick={handleClearLogs}
+                                className="btn btn-outline w-full"
+                                style={{ borderColor: '#fca5a5', color: '#ef4444' }}
+                                disabled={savingSettings}
+                            >
+                                <Trash2 size={16} /> Vaciar Todo el Historial de Historial de Movimientos
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

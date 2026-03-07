@@ -8,6 +8,9 @@ import CourseDetails from './pages/CourseDetails';
 import StudentProfile from './pages/StudentProfile';
 import AdminPanel from './pages/AdminPanel';
 import FamiliasView from './pages/FamiliasView';
+import AuditViews from './pages/AuditViews';
+
+import MyStudents from './pages/MyStudents';
 
 function PrivateRoute({ children }) {
   const { currentUser } = useAuth();
@@ -36,8 +39,10 @@ function App() {
             <Route path="admin" element={<AdminPanel />} />
             <Route path="cursos" element={<Courses />} />
             <Route path="cursos/:courseId" element={<CourseDetails />} />
+            <Route path="mis-estudiantes" element={<MyStudents />} />
             <Route path="estudiantes/:studentId" element={<StudentProfile />} />
             <Route path="mis-hijos" element={<FamiliasView />} />
+            <Route path="audit-views" element={<AuditViews />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

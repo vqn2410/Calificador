@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { User, Download, GraduationCap, ChevronLeft, Calendar } from 'lucide-react';
-import { doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { User, Download, GraduationCap, ChevronLeft, Calendar, Users } from 'lucide-react';
+import { doc, getDoc, updateDoc, arrayUnion, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 
@@ -10,6 +10,7 @@ export default function StudentProfile() {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
     const [student, setStudent] = useState(null);
+    const [familiar, setFamiliar] = useState(null);
     const [loading, setLoading] = useState(true);
 
     // Default mock fallback
@@ -30,7 +31,21 @@ export default function StudentProfile() {
             try {
                 const d = await getDoc(doc(db, 'estudiantes', studentId));
                 if (d.exists()) {
-                    setStudent({ id: d.id, ...d.data() });
+                    const studentData = { id: d.id, ...d.data() };
+                    setStudent(studentData);
+
+                    // Cross-link with Familiar
+                    if (studentData.famFiliacion?.dni) {
+                        try {
+                            const qFam = query(collection(db, 'docentes'), where('dni', '==', studentData.famFiliacion.dni));
+                            const snapFam = await getDocs(qFam);
+                            if (!snapFam.empty) {
+                                setFamiliar(snapFam.docs[0].data());
+                            }
+                        } catch (errFam) {
+                            console.error("Error fetching familiar cross-link:", errFam);
+                        }
+                    }
                 } else {
                     setStudent(mockStudent);
                 }
@@ -43,28 +58,42 @@ export default function StudentProfile() {
         fetchStudent();
     }, [studentId]);
 
-    // View tracking for families
+    // View tracking for families (non-blocking)
     useEffect(() => {
         if (!loading && student && currentUser?.roles?.includes('familia')) {
             const trackView = async () => {
-                const isFirstTimeToday = true; // optional logic, but we can just blindly log it.
-                if (isFirstTimeToday) {
-                    try {
-                        const studentRef = doc(db, 'estudiantes', studentId);
-                        await updateDoc(studentRef, {
-                            vistasFamilia: arrayUnion({
-                                fecha: new Date().toISOString(),
-                                usuario: currentUser.email || currentUser.dni
-                            })
-                        });
-                    } catch (err) {
-                        console.error('Error tracking view', err);
-                    }
+                try {
+                    const studentRef = doc(db, 'estudiantes', studentId);
+
+                    const userIdentifier = currentUser.email || currentUser.dni || currentUser.uid || 'Desconocido';
+
+                    // Normalize DNI searching for parentesco (with and without dots)
+                    const cleanDni = String(student.dni).replace(/[\.\s-]/g, '');
+                    const dottedDni = cleanDni.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                    const parentesco = currentUser[`parentesco_${cleanDni}`] ||
+                        currentUser[`parentesco_${dottedDni}`] ||
+                        currentUser[`parentesco_${student.dni}`] ||
+                        'Familiar';
+
+                    const nombre = currentUser.displayName ||
+                        `${currentUser.apellido || ''}, ${currentUser.nombre || ''}`.trim().replace(/^,/, '').trim() ||
+                        'Usuario';
+
+                    await updateDoc(studentRef, {
+                        vistasFamilia: arrayUnion({
+                            fecha: new Date().toISOString(),
+                            usuario: userIdentifier,
+                            nombre: nombre === 'Usuario' ? userIdentifier : nombre,
+                            parentesco: parentesco
+                        })
+                    });
+                } catch (err) {
+                    console.warn('Silent tracking failure:', err.message);
                 }
             };
             trackView();
         }
-    }, [student, currentUser, loading, studentId]);
+    }, [studentId, loading, !!student, !!currentUser]);
 
     if (loading) return <div className="container" style={{ paddingTop: '100px' }}><h2>Cargando trayectoria...</h2></div>;
 
@@ -81,7 +110,7 @@ export default function StudentProfile() {
 
     const evaluatedAreas = new Set();
     student?.informes?.forEach(inf => {
-        if (inf.materias) {
+        if (inf?.materias) {
             Object.keys(inf.materias).forEach(m => evaluatedAreas.add(m));
         }
     });
@@ -104,30 +133,54 @@ export default function StudentProfile() {
         return map[grade] || grade;
     };
 
-    const getGrade = (trimName, area) => {
-        const inf = student?.informes?.find(i => i.trimestre === trimName);
-        return inf?.materias?.[area] || '';
+    const getGrade = (trimName, mName) => {
+        const inf = (student?.informes || []).find(i => i && i.trimestre === trimName);
+        return inf?.materias?.[mName] || '';
     };
 
     const getInasistencias = (trimName) => {
-        const inf = student?.informes?.find(i => i.trimestre === trimName);
+        const inf = (student?.informes || []).find(i => i && i.trimestre === trimName);
         return inf?.inasistencias || '';
     };
 
     const getDiasHabiles = (trimName) => {
-        const inf = student?.informes?.find(i => i.trimestre === trimName);
+        const inf = (student?.informes || []).find(i => i && i.trimestre === trimName);
         return inf?.diasHabiles || '';
     };
 
+    const trims = ['1er Trimestre', '2do Trimestre', '3er Trimestre'];
+
+    const sumValues = (trimList, getter) => {
+        const total = trimList.reduce((acc, t) => {
+            const val = parseFloat(getter(t));
+            return isNaN(val) ? acc : acc + val;
+        }, 0);
+        return total > 0 ? total : '';
+    };
+
     const getObservacion = (trimName) => {
-        const inf = student?.informes?.find(i => i.trimestre === trimName);
-        return inf?.general || '';
+        const inf = (student?.informes || []).find(i => i && i.trimestre === trimName);
+        const obs = inf?.general;
+        if (!obs) return null;
+
+        if (typeof obs === 'string') return <p style={{ margin: 0 }}>{obs}</p>;
+
+        return Object.entries(obs).map(([uid, data]) => (
+            <div key={uid} style={{ marginBottom: '0.75rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.4rem' }}>
+                <p style={{ margin: 0, fontStyle: 'italic', fontSize: '0.75rem', lineHeight: '1.2' }}>"{data.text}"</p>
+                <div style={{ marginTop: '3px', textAlign: 'right' }}>
+                    <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#1e293b', display: 'block' }}>
+                        {data.signature}
+                    </span>
+                </div>
+            </div>
+        ));
     };
 
     const getStatusColor = (calc) => {
         if (!calc) return 'var(--color-text-main)';
-        if (['Sobresaliente', 'Muy bueno', 'Bueno', '8', '9', '10'].includes(calc)) return 'var(--color-success)';
-        if (['Desaprobado', 'Regular', '1', '2', '3'].includes(calc)) return 'var(--color-error)';
+        if (['Sobresaliente', 'Muy bueno', 'Bueno', '8', '9', '10', 'S', 'MB', 'B'].includes(calc)) return 'var(--color-success)';
+        if (['Desaprobado', 'Regular', '1', '2', '3', 'D', 'R'].includes(calc)) return 'var(--color-error)';
         return 'var(--color-text-main)';
     };
 
@@ -140,58 +193,26 @@ export default function StudentProfile() {
         const val3 = getGrade('3er Trimestre', area);
         const pe = getGrade('Período Extendido', area);
 
-        if (!val1 && !val2 && !val3 && !pe) return '';
+        if (!val1 || !val2 || !val3) return '';
 
         let isConceptual = false;
-        const conceptualScores = { 'Sobresaliente': 10, 'Muy bueno': 8, 'Bueno': 7, 'Regular': 5, 'Desaprobado': 3, 'S': 10, 'MB': 8, 'B': 7, 'R': 5, 'D': 3 };
-
-        const parseVal = (val) => {
-            if (!val) return null;
-            if (conceptualScores[val]) {
-                isConceptual = true;
-                return conceptualScores[val];
-            }
-            const num = parseFloat(val);
-            return isNaN(num) ? null : num;
-        };
-
-        const numToConceptual = (val) => {
-            if (val >= 9.5) return 'Sobresaliente';
-            if (val >= 8) return 'Muy bueno';
-            if (val >= 7) return 'Bueno';
-            if (val >= 4) return 'Regular';
-            return 'Desaprobado';
+        const concepts = ['Sobresaliente', 'Muy bueno', 'Bueno', 'Regular', 'Desaprobado'];
+        if (concepts.includes(val1) || concepts.includes(val2) || concepts.includes(val3)) {
+            isConceptual = true;
         }
 
-        const n1 = parseVal(val1);
-        const n2 = parseVal(val2);
-        const n3 = parseVal(val3);
-
-        const sum = [n1, n2, n3].reduce((a, b) => a + (b || 0), 0);
-        const count = [n1, n2, n3].filter(n => n !== null).length;
-
-        let finalNum = count > 0 ? (sum / count) : null;
-        let finalStatus = '';
-
-        if (finalNum !== null) {
-            const passed = finalNum >= 7;
-            if (!passed && pe) {
-                return pe; // Si desaprobó y hay nota de PE, queda la nota de PE
-            }
-            if (isConceptual) {
-                finalStatus = numToConceptual(finalNum);
-            } else {
-                finalStatus = Math.round(finalNum).toString();
-            }
+        if (isConceptual) {
+            if (pe) return pe;
+            const values = [val1, val2, val3].map(v => concepts.indexOf(v));
+            if (values.includes(4)) return 'Desaprobado';
+            if (values.includes(3)) return 'Regular';
+            return 'Bueno';
+        } else {
+            if (pe) return pe;
+            const avg = (parseFloat(val1) + parseFloat(val2) + parseFloat(val3)) / 3;
+            return avg >= 7 ? Math.round(avg).toString() : 'Regular';
         }
-
-        return finalStatus;
     };
-
-    const sumValues = (trims, getter) => trims.reduce((acc, trim) => {
-        const val = parseFloat(getter(trim));
-        return acc + (!isNaN(val) ? val : 0);
-    }, 0);
 
     const getTrimestreFromDate = (isoDate) => {
         if (!isoDate) return '-';
@@ -202,23 +223,36 @@ export default function StudentProfile() {
         return 'Fuera de Término / Verano';
     };
 
+    const formatDateTime = (isoDate) => {
+        if (!isoDate) return '-';
+        const d = new Date(isoDate);
+        const day = d.getDate();
+        const month = d.getMonth() + 1;
+        const year = d.getFullYear();
+        const hours = d.getHours().toString().padStart(2, '0');
+        const minutes = d.getMinutes().toString().padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}hs`;
+    };
+
     return (
         <div className="container" style={{ paddingBottom: '3rem' }}>
+            {/* VOLVER (NO-PRINT) */}
             <div className="no-print mb-4 mt-2">
                 <button onClick={() => navigate(-1)} className="btn btn-outline" style={{ padding: '0.5rem 1rem' }}>
                     <ChevronLeft size={16} /> Volver
                 </button>
             </div>
 
+            {/* HEADER CARD (NO-PRINT) */}
             <div className="card mb-4 no-print" style={{ backgroundColor: 'var(--color-primary)', color: 'white', border: 'none' }}>
                 <div className="flex justify-between items-center flex-wrap gap-4">
                     <div className="flex items-center gap-4">
-                        <div style={{ backgroundColor: 'white', color: 'var(--color-primary)', padding: '1.5rem', borderRadius: 'var(--radius-full)' }}>
-                            <User size={48} />
+                        <div style={{ backgroundColor: 'white', color: 'var(--color-primary)', padding: '1.2rem', borderRadius: 'var(--radius-full)' }}>
+                            <User size={36} />
                         </div>
                         <div>
-                            <h1 style={{ color: 'white', margin: 0 }}>{student?.nombre}</h1>
-                            <p style={{ margin: 0, color: 'rgba(255,255,255,0.8)' }}>DNI: {student?.dni}</p>
+                            <h1 style={{ color: 'white', margin: 0, fontSize: '1.5rem' }}>{student?.nombre}</h1>
+                            <p style={{ margin: 0, color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem' }}>DNI: {student?.dni}</p>
                             <div className="flex gap-2 mt-2">
                                 <span className="badge" style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }}>
                                     <GraduationCap size={12} style={{ marginRight: '4px' }} /> {student?.cursoId || student?.curso}
@@ -234,116 +268,138 @@ export default function StudentProfile() {
                 </div>
             </div>
 
+            {/* BOLETIN OFICIAL CONTAINER */}
             <div className="boletin-oficial-container">
                 <style>{`
                     .boletin-grid {
-                        display: grid;
-                        grid-template-columns: 1fr 1fr;
-                        gap: 2rem;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 1.2rem;
                         font-family: sans-serif;
                     }
                     .bol-table {
                         width: 100%;
                         border-collapse: collapse;
-                        font-size: 0.75rem;
+                        font-size: 0.8rem;
                         text-align: center;
                     }
                     .bol-table th {
-                        background-color: #9ca3af;
-                        color: white;
-                        border: 2px solid white;
+                        background-color: #f1f5f9;
+                        color: #1e293b;
+                        border: 1px solid #cbd5e1;
                         padding: 8px 4px;
                         font-size: 0.7rem;
                         text-transform: uppercase;
                     }
                     .bol-table td {
-                        background-color: #e5e7eb;
-                        border: 2px solid white;
-                        padding: 8px 4px;
+                        background-color: white;
+                        border: 1px solid #cbd5e1;
+                        padding: 6px 4px;
                         font-weight: 600;
-                        color: #374151;
+                        color: #334155;
                     }
                     .bol-table td.area-title {
                         text-align: left;
                         padding-left: 8px;
                         text-transform: uppercase;
-                        font-size: 0.7rem;
+                        font-size: 0.65rem;
+                        width: 40%;
+                    }
+                    .obs-container {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 0.75rem;
                     }
                     .obs-block {
-                        background-color: #e5e7eb;
+                        background-color: #f8fafc;
+                        border: 1px solid #e2e8f0;
                         border-radius: 4px;
-                        min-height: 80px;
-                        margin-bottom: 0.5rem;
+                        min-height: 70px;
                         position: relative;
-                        padding: 1.5rem 1rem 1rem 1rem;
-                        font-size: 0.8rem;
-                        color: #374151;
+                        padding: 1.6rem 0.6rem 0.5rem 0.6rem;
+                        font-size: 0.75rem;
+                        color: #1e293b;
+                        line-height: 1.2;
                     }
                     .obs-badge {
-                        background-color: white;
-                        border-radius: 20px;
-                        padding: 2px 12px;
-                        font-size: 0.65rem;
+                        background-color: #64748b;
+                        color: white;
+                        border-radius: 0 0 4px 0;
+                        padding: 1px 8px;
+                        font-size: 0.55rem;
                         font-weight: bold;
-                        color: #6b7280;
                         position: absolute;
-                        top: 8px;
-                        left: 8px;
-                        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                        top: 0;
+                        left: 0;
                     }
                     .header-info {
-                        color: #4b5563;
+                        color: #1e293b;
                         font-weight: bold;
-                        font-size: 0.9rem;
-                        margin-bottom: 1rem;
+                        font-size: 0.8rem;
+                        margin-bottom: 0.5rem;
                         display: flex;
-                        gap: 1rem;
-                    }
-                    .header-pill {
-                        background-color: #9ca3af;
-                        color: white;
-                        border-radius: 20px;
-                        padding: 4px 16px;
-                        display: inline-block;
-                        font-size: 1rem;
-                        letter-spacing: 1px;
+                        justify-content: space-between;
+                        border-bottom: 2px solid #1e293b;
+                        padding-bottom: 3px;
                     }
                     @media print {
-                        .boletin-oficial-container { padding: 0; }
-                        body { background-color: white !important; }
-                        @page { margin: 1cm; size: landscape; }
-                        .obs-block { background-color: #f3f4f6 !important; -webkit-print-color-adjust: exact; }
-                        .bol-table th { background-color: #9ca3af !important; color: white !important; -webkit-print-color-adjust: exact; }
-                        .bol-table td { background-color: #f3f4f6 !important; -webkit-print-color-adjust: exact; }
-                        .header-pill { background-color: #9ca3af !important; color: white !important; -webkit-print-color-adjust: exact; }
+                        .boletin-oficial-container { padding: 0 !important; margin: 0 !important; }
+                        body { background-color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        @page { 
+                            margin: 1.2cm; 
+                            size: A4 portrait; 
+                        }
+                        .no-print { display: none !important; }
+                        .obs-block { background-color: #fff !important; border: 1px solid #e2e8f0 !important; }
+                        .bol-table th { background-color: #f1f5f9 !important; }
                     }
                     @media (max-width: 768px) {
-                        .boletin-grid { grid-template-columns: 1fr; }
+                        .obs-container { grid-template-columns: 1fr; }
                     }
                 `}</style>
 
-                <div className="print-only mb-4 text-center">
-                    <h2>BOLETÍN DE CALIFICACIONES - {student?.nombre}</h2>
+                {/* MEMBRETE INSTITUCIONAL (PRINT ONLY) */}
+                <div className="print-only" style={{ marginBottom: '1.2rem', borderBottom: '3px double #000', paddingBottom: '0.8rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem' }}>
+                        <img src="https://i.postimg.cc/vBGtNsKg/Whats-App-Image-2026-03-06-at-15-14-14.jpg" alt="Logo Escuela" style={{ width: '75px', height: '75px', objectFit: 'contain' }} />
+                        <div style={{ flex: 1 }}>
+                            <h3 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 400, textTransform: 'uppercase' }}>Dirección General de Cultura y Educación</h3>
+                            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>Escuela Primaria N°6 "Rafael Obligado"</h3>
+                            <p style={{ margin: '1px 0 0 0', fontSize: '0.75rem', fontStyle: 'italic' }}>Provincia de Buenos Aires - Ciclo Lectivo {currentYear}</p>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                            <div style={{ border: '1px solid #000', padding: '5px 10px', fontSize: '0.9rem', fontWeight: 800 }}>
+                                {student?.cursoId || student?.curso}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="print-only mb-6" style={{ textAlign: 'center' }}>
+                    <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, border: '2px solid #000', display: 'inline-block', padding: '4px 20px' }}>
+                        BOLETÍN DE TRAYECTORIA ESCOLAR
+                    </h1>
                 </div>
 
                 <div className="boletin-grid">
-                    {/* LEFT COLUMN: GRADES TABLE */}
+                    {/* ENCABEZADO DE DATOS */}
                     <div>
-                        <div className="header-info uppercase">
-                            <span>CICLO LECTIVO 20{currentYear.toString().slice(-2)}</span>
-                            <span>AÑO {(student?.cursoId || student?.curso || '')?.charAt(0)}°</span>
-                            <span>SECCIÓN {(student?.cursoId || student?.curso || '')?.charAt(1)}</span>
+                        <div className="header-info">
+                            <span>ALUMNO: {student?.nombre.toUpperCase()}</span>
+                            <span>DNI: {student?.dni}</span>
+                            <span>ESTADO: REGULAR</span>
                         </div>
 
+                        {/* TABLA DE CALIFICACIONES */}
                         <table className="bol-table">
                             <thead>
                                 <tr>
-                                    <th style={{ width: '25%' }}>ÁREA CURRICULAR</th>
-                                    <th>1° INFORME</th>
-                                    <th>2° INFORME</th>
-                                    <th>3° INFORME</th>
-                                    <th>PERÍODO EXTENDIDO</th>
-                                    <th>INFORME FINAL</th>
+                                    <th>ÁREAS CURRICULARES</th>
+                                    <th>1° INF</th>
+                                    <th>2° INF</th>
+                                    <th>3° INF</th>
+                                    <th>P. EXT</th>
+                                    <th>FINAL</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -354,114 +410,178 @@ export default function StudentProfile() {
                                         <td style={{ color: getStatusColor(getGrade('2do Trimestre', area)) }}>{formatGrade(getGrade('2do Trimestre', area))}</td>
                                         <td style={{ color: getStatusColor(getGrade('3er Trimestre', area)) }}>{formatGrade(getGrade('3er Trimestre', area))}</td>
                                         <td style={{ color: getStatusColor(getGrade('Período Extendido', area)) }}>{formatGrade(getGrade('Período Extendido', area))}</td>
-                                        <td style={{ color: getStatusColor(getFinalGrade(area)) }}>{formatGrade(getFinalGrade(area))}</td>
+                                        <td style={{ color: getStatusColor(getFinalGrade(area)), fontWeight: 800 }}>{formatGrade(getFinalGrade(area))}</td>
                                     </tr>
                                 ))}
-                                <tr>
-                                    <td className="area-title" style={{ marginTop: '4px' }}>DÍAS HÁBILES</td>
+                                <tr style={{ borderTop: '2px solid #1e293b' }}>
+                                    <td className="area-title" style={{ fontWeight: 800 }}>DÍAS HÁBILES</td>
                                     <td>{getDiasHabiles('1er Trimestre')}</td>
                                     <td>{getDiasHabiles('2do Trimestre')}</td>
                                     <td>{getDiasHabiles('3er Trimestre')}</td>
                                     <td></td>
-                                    <td style={{ fontWeight: 800 }}>{sumValues(trims, getDiasHabiles) || ''}</td>
+                                    <td style={{ fontWeight: 800 }}>{sumValues(trims, getDiasHabiles)}</td>
                                 </tr>
                                 <tr>
-                                    <td className="area-title">INASISTENCIAS</td>
+                                    <td className="area-title" style={{ fontWeight: 800 }}>INASISTENCIAS</td>
                                     <td>{getInasistencias('1er Trimestre')}</td>
                                     <td>{getInasistencias('2do Trimestre')}</td>
                                     <td>{getInasistencias('3er Trimestre')}</td>
                                     <td></td>
-                                    <td style={{ fontWeight: 800 }}>{sumValues(trims, getInasistencias) || ''}</td>
+                                    <td style={{ fontWeight: 800 }}>{sumValues(trims, getInasistencias)}</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
 
-                    {/* RIGHT COLUMN: OBSERVATIONS */}
+                    {/* SECCIÓN DE OBSERVACIONES */}
                     <div>
-                        <div className="header-info uppercase justify-between items-center" style={{ marginBottom: '1.2rem' }}>
-                            <span>AÑO {(student?.cursoId || student?.curso || '')?.charAt(0)}° - 20{currentYear.toString().slice(-2)}</span>
-                            <span className="header-pill">OBSERVACIONES</span>
+                        <div style={{ textAlign: 'center', marginBottom: '0.4rem' }}>
+                            <span style={{ fontWeight: 800, fontSize: '0.75rem', textTransform: 'uppercase', textDecoration: 'underline' }}>
+                                Observaciones Pedagógicas
+                            </span>
                         </div>
-
-                        <div className="obs-block">
-                            <span className="obs-badge">1° INFORME</span>
-                            {getObservacion('1er Trimestre')}
-                        </div>
-
-                        <div className="obs-block">
-                            <span className="obs-badge">2° INFORME</span>
-                            {getObservacion('2do Trimestre')}
-                        </div>
-
-                        <div className="obs-block">
-                            <span className="obs-badge">3° INFORME</span>
-                            {getObservacion('3er Trimestre')}
-                        </div>
-
-                        <div className="obs-block" style={{ minHeight: '60px' }}>
-                            <span className="obs-badge">PERÍODO EXTENDIDO</span>
-                        </div>
-
-                        <div className="obs-block" style={{ minHeight: '60px' }}>
-                            <span className="obs-badge">INFORME FINAL</span>
+                        <div className="obs-container">
+                            <div className="obs-block">
+                                <span className="obs-badge">1° INFORME</span>
+                                {getObservacion('1er Trimestre')}
+                            </div>
+                            <div className="obs-block">
+                                <span className="obs-badge">2° INFORME</span>
+                                {getObservacion('2do Trimestre')}
+                            </div>
+                            <div className="obs-block">
+                                <span className="obs-badge">3° INFORME</span>
+                                {getObservacion('3er Trimestre')}
+                            </div>
+                            <div className="obs-block">
+                                <span className="obs-badge">P. EXTENDIDO / FINAL</span>
+                                {getObservacion('Período Extendido') || getObservacion('Informe Final')}
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* CUADRO DE REFERENCIAS */}
-                <div style={{ gridColumn: '1 / -1', marginTop: '1rem', borderTop: '2px solid #e5e7eb', paddingTop: '1rem' }}>
-                    <div style={{ fontSize: '0.8rem', color: '#4b5563', fontWeight: 'bold', marginBottom: '0.5rem', textAlign: 'center' }}>
-                        REFERENCIAS DE CALIFICACIÓN
+                    {/* REFERENCIAS */}
+                    <div>
+                        <div style={{ fontSize: '0.6rem', fontWeight: 800, marginBottom: '2px', textAlign: 'center' }}>Simbología: S (Sobresaliente), MB (Muy Bueno), B (Bueno), R (Regular), D (Desaprobado)</div>
                     </div>
-                    <table className="bol-table" style={{ width: '100%', maxWidth: '600px', margin: '0 auto', fontSize: '0.7rem' }}>
-                        <tbody>
-                            <tr>
-                                <td style={{ fontWeight: 'bold' }}>S</td><td style={{ textAlign: 'left', backgroundColor: 'white' }}>Sobresaliente</td>
-                                <td style={{ fontWeight: 'bold' }}>MB</td><td style={{ textAlign: 'left', backgroundColor: 'white' }}>Muy bueno</td>
-                                <td style={{ fontWeight: 'bold' }}>B</td><td style={{ textAlign: 'left', backgroundColor: 'white' }}>Bueno</td>
-                                <td style={{ fontWeight: 'bold' }}>R</td><td style={{ textAlign: 'left', backgroundColor: 'white' }}>Regular</td>
-                                <td style={{ fontWeight: 'bold' }}>D</td><td style={{ textAlign: 'left', backgroundColor: 'white' }}>Desaprobado</td>
-                            </tr>
-                        </tbody>
-                    </table>
+
+                    {/* FIRMAS / NOTIFICACIÓN DIGITAL */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginTop: 'auto' }}>
+                        {['1er Trimestre', '2do Trimestre', '3er Trimestre'].map(trim => {
+                            const firstView = [...(student.vistasFamilia || [])]
+                                .filter(v => getTrimestreFromDate(v.fecha) === trim)
+                                .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))[0];
+
+                            return (
+                                <div key={trim} style={{ border: '1px solid #94a3b8', padding: '8px', minHeight: '90px', display: 'flex', flexDirection: 'column' }}>
+                                    <div style={{ fontWeight: 800, fontSize: '0.6rem', textAlign: 'center', borderBottom: '1px solid #94a3b8', paddingBottom: '3px', marginBottom: '5px' }}>
+                                        {trim.toUpperCase()}
+                                    </div>
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {firstView ? (
+                                            <div style={{ textAlign: 'center', fontSize: '0.55rem', padding: '0 2px' }}>
+                                                <div style={{ fontWeight: 800, color: 'var(--color-primary)', borderBottom: '1px solid #e2e8f0', marginBottom: '2px' }}>NOTIFICACIÓN DIGITAL</div>
+                                                <div style={{ marginTop: '2px', fontWeight: 700 }}>{firstView.nombre || 'RESPONSABLE'}</div>
+                                                <div style={{ fontSize: '0.45rem' }}>{firstView.usuario}</div>
+                                                <div style={{ fontSize: '0.45rem', fontStyle: 'italic' }}>{formatDateTime(firstView.fecha)}</div>
+                                            </div>
+                                        ) : (
+                                            <div style={{ borderBottom: '1px dotted #94a3b8', width: '80%', marginTop: '15px' }}></div>
+                                        )}
+                                    </div>
+                                    <div style={{ fontSize: '0.5rem', textAlign: 'center', fontWeight: 600, marginTop: '4px' }}>
+                                        Firma Tutor/Padre/Madre
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
 
-            {/* AUDITORIA DE VISTAS (SOLO PARA DOCENTES/DIRECTIVOS) */}
+            {/* AUDITORIA Y VINCULACION (NO-PRINT) */}
             {!currentUser?.roles?.includes('familia') && (
-                <div className="card mt-4 no-print" style={{ border: '2px dashed var(--color-border)', backgroundColor: '#f9fafb' }}>
-                    <h3 className="mb-4 flex items-center gap-2" style={{ color: 'var(--color-primary)' }}>
-                        <User size={20} />
-                        Auditoría: Registro de Lectura (Familia)
-                    </h3>
+                <div className="no-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginTop: '3rem' }}>
+                    {/* Tarjeta de Vinculación Familiar */}
+                    <div className="card" style={{ border: '2px dashed var(--color-primary)' }}>
+                        <h3 className="flex items-center gap-2 mb-4"><Users size={20} color="var(--color-primary)" /> Familiar Responsable</h3>
+                        {familiar ? (
+                            <div style={{ fontSize: '0.9rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                    <span style={{ fontWeight: 700, color: '#64748b' }}>Nombre:</span>
+                                    <span>{familiar.nombre} {familiar.apellido}</span>
 
-                    {student?.vistasFamilia && student.vistasFamilia.length > 0 ? (
-                        <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                                    <span style={{ fontWeight: 700, color: '#64748b' }}>Vínculo:</span>
+                                    <span>{student.famFiliacion?.parentesco || 'Madre/Padre'}</span>
+
+                                    <span style={{ fontWeight: 700, color: '#64748b' }}>DNI:</span>
+                                    <span>{familiar.dni}</span>
+
+                                    <span style={{ fontWeight: 700, color: '#64748b' }}>Email:</span>
+                                    <span style={{ color: 'var(--color-primary)' }}>{familiar.email}</span>
+
+                                    <span style={{ fontWeight: 700, color: '#64748b' }}>Teléfono:</span>
+                                    <span>{familiar.telefono || 'No registrado'}</span>
+                                </div>
+                                <div className="badge badge-success" style={{ fontSize: '0.7rem', marginTop: '1rem' }}>
+                                    Cuenta de acceso activa vinculada al DNI {familiar.dni}
+                                </div>
+                            </div>
+                        ) : student.famFiliacion?.dni ? (
+                            <div style={{ padding: '1rem', backgroundColor: '#fff7ed', borderRadius: '8px', border: '1px solid #ffedd5' }}>
+                                <p style={{ margin: 0, color: '#c2410c', fontSize: '0.85rem' }}>
+                                    <strong>Aviso:</strong> Hay un DNI de responsable ({student.famFiliacion.dni}) registrado pero el familiar aún no ha creado su cuenta o los datos no coinciden.
+                                </p>
+                            </div>
+                        ) : (
+                            <p style={{ fontStyle: 'italic', color: '#64748b' }}>No hay información de vinculación familiar registrada.</p>
+                        )}
+                    </div>
+
+                    {/* Historial de Lectura */}
+                    <div className="card" style={{ border: '2px dashed #cbd5e1' }}>
+                        <h3 className="flex items-center gap-2 mb-4"><Calendar size={20} /> Historial de Lectura Familiar</h3>
+                        {student?.vistasFamilia?.length > 0 ? (
+                            <table style={{ width: '100%', fontSize: '0.85rem' }}>
                                 <thead>
-                                    <tr style={{ backgroundColor: '#e5e7eb', textAlign: 'left' }}>
-                                        <th style={{ padding: '0.75rem' }}>Trimestre Estimado</th>
-                                        <th style={{ padding: '0.75rem' }}>Fecha de Lectura</th>
-                                        <th style={{ padding: '0.75rem' }}>Usuario (DNI / Correo)</th>
+                                    <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
+                                        <th style={{ padding: '8px' }}>Informe</th>
+                                        <th style={{ padding: '8px' }}>Fecha y Hora</th>
+                                        <th style={{ padding: '8px' }}>Familiar</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {[...student.vistasFamilia].reverse().map((vista, idx) => (
-                                        <tr key={idx} style={{ borderBottom: '1px solid #d1d5db' }}>
-                                            <td style={{ padding: '0.75rem', fontWeight: 600 }}>{getTrimestreFromDate(vista.fecha)}</td>
-                                            <td style={{ padding: '0.75rem' }}>{new Date(vista.fecha).toLocaleString()}</td>
-                                            <td style={{ padding: '0.75rem' }}>{vista.usuario}</td>
-                                        </tr>
-                                    ))}
+                                    {(() => {
+                                        const firstViewsMap = {};
+                                        [...(student.vistasFamilia || [])]
+                                            .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+                                            .forEach(v => {
+                                                const t = getTrimestreFromDate(v.fecha);
+                                                if (!firstViewsMap[t]) firstViewsMap[t] = v;
+                                            });
+                                        const order = ['1er Trimestre', '2do Trimestre', '3er Trimestre', 'Fuera de Término / Verano'];
+                                        return order.filter(t => firstViewsMap[t]).map(t => {
+                                            const v = firstViewsMap[t];
+                                            return (
+                                                <tr key={t} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                    <td style={{ padding: '8px', fontWeight: 600 }}>{t}</td>
+                                                    <td style={{ padding: '8px' }}>{formatDateTime(v.fecha)}</td>
+                                                    <td style={{ padding: '8px' }}>
+                                                        <div style={{ fontWeight: 600 }}>{v.nombre || 'Visto por familiar'}</div>
+                                                        <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>
+                                                            {v.parentesco || 'Responsable'} - ID: {v.usuario}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        });
+                                    })()}
                                 </tbody>
                             </table>
-                        </div>
-                    ) : (
-                        <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>
-                            Ningún familiar ha abierto el boletín de este estudiante aún.
-                        </p>
-                    )}
+                        ) : (
+                            <p style={{ fontStyle: 'italic', color: '#64748b' }}>Sin visualizaciones registradas aún.</p>
+                        )}
+                    </div>
                 </div>
             )}
         </div>
