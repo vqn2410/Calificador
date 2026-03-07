@@ -58,9 +58,17 @@ export function AuthProvider({ children }) {
         };
         window.addEventListener('focus', onFocus);
 
-        // Also check on visibility change
+        // Visibility change: lock immediately if biometric enabled, else check inactivity
         const onVisible = () => {
-            if (document.visibilityState === 'visible') {
+            const biometricEnabled = localStorage.getItem('biometricEnabled') === 'true';
+            if (document.visibilityState === 'hidden') {
+                // App going to background
+                if (biometricEnabled) {
+                    // Lock immediately so biometric is required on return
+                    setIsLocked(true);
+                }
+            } else {
+                // App returning to foreground
                 const last = parseInt(localStorage.getItem('lastActivity') || '0');
                 if (last && Date.now() - last > INACTIVITY_LIMIT_MS) {
                     setIsLocked(true);

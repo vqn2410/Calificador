@@ -1,0 +1,55 @@
+{
+    "name": "EP N°6 – Rafael Obligado",
+    "short_name": "EP N°6",
+    "description": "Sistema de Calificaciones de la Escuela Primaria N°6 Rafael Obligado",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#044b7f",
+    "theme_color": "#044b7f",
+    "orientation": "portrait-primary",
+    "lang": "es-AR",
+    "icons": [
+        {
+            "src": "/icon-512.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "screenshots": [],
+    "categories": [
+        "education"
+    ],
+    "shortcuts": [
+        {
+            "name": "Mensajería",
+            "short_name": "Mensajes",
+            "description": "Ir a Mensajería",
+            "url": "/mensajeria",
+            "icons": [
+                {
+                    "src": "/icon-512.png",
+                    "sizes": "96x96"
+                }
+            ]
+        },
+        {
+            "name": "Mis Cursos",
+            "short_name": "Cursos",
+            "description": "Ver cursos",
+            "url": "/cursos",
+            "icons": [
+                {
+                    "src": "/icon-512.png",
+                    "sizes": "96x96"
+                }
+            ]
+        }
+    ]
+}

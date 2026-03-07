@@ -77,20 +77,49 @@ export default function LockScreen() {
     const [biometricLoading, setBiometricLoading] = useState(false);
     const [pwdLoading, setPwdLoading] = useState(false);
 
+    const [autoTriggered, setAutoTriggered] = useState(false);
+
     const nombre = currentUser?.displayName?.split(' ')[0] || 'Usuario';
     const email = currentUser?.email || '';
     const userId = currentUser?.uid || email;
+    const biometricEnabled = localStorage.getItem('biometricEnabled') === 'true';
 
     useEffect(() => {
         checkBiometricAvailable().then(available => {
             setBiometricAvailable(available);
-            if (available) {
-                setHasBiometricRegistered(!!localStorage.getItem(`biometric_cred_${userId}`));
+            const hasReg = !!localStorage.getItem(`biometric_cred_${userId}`);
+            setHasBiometricRegistered(hasReg);
+
+            // Auto-trigger biometric if enabled, available and registered
+            if (available && hasReg && biometricEnabled && !autoTriggered) {
+                setAutoTriggered(true);
+                setTimeout(() => handleBiometricAuto(), 400);
             }
         });
-    }, [userId]);
+    }, [userId]); // eslint-disable-line
 
-    /* ── Biometric unlock ───────────────────────────────── */
+    /* ── Auto-trigger (called on mount, silent errors) ──── */
+    async function handleBiometricAuto() {
+        setBiometricLoading(true);
+        try {
+            const ok = await verifyBiometric(userId);
+            if (ok) { unlockSession(); return; }
+            setError('Verificación fallida. Usá tu contraseña o intentá de nuevo.');
+        } catch (err) {
+            if (err.name === 'NotAllowedError') {
+                // User dismissed — show password silently
+                setMode('password');
+            } else if (err.name === 'InvalidStateError') {
+                localStorage.removeItem(`biometric_cred_${userId}`);
+                setHasBiometricRegistered(false);
+            }
+            // Don't show error on auto-trigger — just let them see the screen
+        } finally {
+            setBiometricLoading(false);
+        }
+    }
+
+    /* ── Manual biometric unlock ────────────────────────── */
     async function handleBiometric() {
         setError('');
         setBiometricLoading(true);
@@ -165,8 +194,28 @@ export default function LockScreen() {
 
             <h2 style={{ color: 'white', margin: 0, fontSize: '1.4rem' }}>Sesión bloqueada</h2>
             <p style={{ color: 'rgba(255,255,255,0.7)', margin: '0.5rem 0 2rem', fontSize: '0.9rem', textAlign: 'center' }}>
-                Hola, <strong style={{ color: 'white' }}>{nombre}</strong>. La sesión se bloqueó por inactividad.
+                Hola, <strong style={{ color: 'white' }}>{nombre}</strong>.
+                {biometricLoading
+                    ? ' Verificando tu identidad...'
+                    : ' Desbloquear para continuar.'}
             </p>
+
+            {/* Pulsing indicator when auto-verifying */}
+            {biometricLoading && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+                    <div style={{
+                        width: 72, height: 72, borderRadius: '50%',
+                        backgroundColor: 'rgba(255,255,255,0.1)',
+                        border: '2px solid rgba(255,255,255,0.4)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        animation: 'pulse 1.2s ease-in-out infinite',
+                    }}>
+                        <style>{`@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(0.93)} }`}</style>
+                        <Fingerprint size={36} color="white" />
+                    </div>
+                    <p style={{ color: 'rgba(255,255,255,0.8)', margin: 0, fontSize: '0.88rem' }}>Tocá el sensor o mirá la cámara</p>
+                </div>
+            )}
 
             <div style={{ width: '100%', maxWidth: 380 }}>
                 {/* ── Main options ── */}
