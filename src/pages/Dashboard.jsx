@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { db } from '../config/firebase';
 import { Users, BookOpen, GraduationCap, Clock } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+
+const COLORS = ['#044b7f', '#f8981d', '#0d6db3', '#008f5e', '#ef4444', '#f59e0b', '#10b981', '#64748b'];
 
 export default function Dashboard() {
     const { currentUser } = useAuth();
@@ -10,12 +15,72 @@ export default function Dashboard() {
         return <Navigate to="/mis-hijos" replace />;
     }
 
-    const stats = [
-        { label: 'Cursos Asignados', value: '4', icon: <Users size={24} color="var(--color-primary)" /> },
-        { label: 'Estudiantes', value: '124', icon: <GraduationCap size={24} color="var(--color-secondary)" /> },
-        { label: 'Materias', value: '8', icon: <BookOpen size={24} color="var(--color-accent)" /> },
-        { label: 'Informes Pendientes', value: '12', icon: <Clock size={24} color="var(--color-warning)" /> }
-    ];
+    const [stats, setStats] = useState([
+        { label: 'Cursos Asignados', value: '0', icon: <Users size={24} color="var(--color-primary)" /> },
+        { label: 'Estudiantes', value: '0', icon: <GraduationCap size={24} color="var(--color-secondary)" /> },
+        { label: 'Docentes Totales', value: '0', icon: <BookOpen size={24} color="var(--color-accent)" /> }
+    ]);
+    const [chartData, setChartData] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    const isAdmin = currentUser?.roles?.includes('administrador');
+    const myCourses = currentUser?.cursosAsignados || [];
+
+    useEffect(() => {
+        const fetchDashboardData = async () => {
+            setLoading(true);
+            try {
+                // Fetch Students
+                let qStudents;
+                if (isAdmin) {
+                    qStudents = collection(db, 'estudiantes');
+                } else if (myCourses.length > 0) {
+                    qStudents = query(collection(db, 'estudiantes'), where('cursoId', 'in', myCourses));
+                }
+
+                let stDocs = [];
+                if (qStudents) {
+                    const stSnapshot = await getDocs(qStudents);
+                    stDocs = stSnapshot.docs.map(doc => doc.data());
+                }
+
+                // Fetch Docentes
+                let docDocs = [];
+                if (isAdmin) {
+                    const docSnapshot = await getDocs(collection(db, 'docentes'));
+                    docDocs = docSnapshot.docs;
+                }
+
+                setStats([
+                    { label: isAdmin ? 'Cursos Totales (aprox)' : 'Mis Cursos', value: isAdmin ? '12' : myCourses.length.toString(), icon: <Users size={24} color="var(--color-primary)" /> },
+                    { label: isAdmin ? 'Estudiantes Totales' : 'Mis Estudiantes', value: stDocs.length.toString(), icon: <GraduationCap size={24} color="var(--color-secondary)" /> },
+                    { label: 'Docentes en Plataforma', value: isAdmin ? docDocs.length.toString() : '---', icon: <BookOpen size={24} color="var(--color-accent)" /> }
+                ]);
+
+                // Construct Chart Data (Alumnos por curso)
+                const courseCounts = {};
+                stDocs.forEach(st => {
+                    const c = st.cursoId || 'Sin Curso';
+                    courseCounts[c] = (courseCounts[c] || 0) + 1;
+                });
+
+                const cData = Object.keys(courseCounts).map(k => ({
+                    name: k, value: courseCounts[k]
+                })).sort((a, b) => b.value - a.value);
+
+                setChartData(cData);
+
+            } catch (err) {
+                console.error("Error fetching dashboard data", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (currentUser) {
+            fetchDashboardData();
+        }
+    }, [currentUser, isAdmin, myCourses]);
 
     return (
         <div className="container">
@@ -36,10 +101,10 @@ export default function Dashboard() {
                 ))}
             </div>
 
-            <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem' }}>
                 <div className="card">
-                    <h3 className="flex items-center gap-2">
-                        <Clock size={20} color="var(--color-primary)" />
+                    <h3 className="flex items-center gap-2 mb-4">
+                        <BookOpen size={20} color="var(--color-primary)" />
                         Próximos Cierres Trimestrales
                     </h3>
                     <ul style={{ listStyle: 'none', padding: 0 }}>
@@ -50,21 +115,53 @@ export default function Dashboard() {
                             </li>
                         ))}
                     </ul>
+
+                    {myCourses.length > 0 && (
+                        <div style={{ marginTop: '2rem' }}>
+                            <h4 style={{ fontSize: '0.9rem', marginBottom: '1rem', color: 'var(--color-text-muted)' }}>Mis Accesos Rápidos</h4>
+                            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: '0.5rem' }}>
+                                {myCourses.map((c, idx) => (
+                                    <Link key={idx} to={`/cursos/${c}`} className="btn btn-outline" style={{ display: 'flex', flexDirection: 'column', padding: '0.5rem' }}>
+                                        <span style={{ fontWeight: 700, fontSize: '1rem' }}>{c.split('-')[0]}</span>
+                                        <span style={{ fontSize: '0.65rem' }}>{c.split('-')[1]}</span>
+                                    </Link>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div className="card">
-                    <h3 className="flex items-center gap-2">
-                        <BookOpen size={20} color="var(--color-primary)" />
-                        Acceso Rápido - Cursos (Secciones)
+                    <h3 className="flex items-center gap-2 mb-4">
+                        <Users size={20} color="var(--color-primary)" />
+                        Distribución de Estudiantes
                     </h3>
-                    <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                        {['1°A - Turno Mañana', '3°C - Turno Tarde', '5°B - Turno Mañana', '6°D - Turno Tarde'].map((c, idx) => (
-                            <div key={idx} className="btn btn-outline flex flex-col items-center justify-center p-4">
-                                <span style={{ fontWeight: 700, fontSize: '1.25rem' }}>{c.split('-')[0]}</span>
-                                <span style={{ fontSize: '0.75rem' }}>{c.split('-')[1]}</span>
-                            </div>
-                        ))}
-                    </div>
+                    {loading ? <p>Cargando gráfico...</p> : chartData.length > 0 ? (
+                        <div style={{ width: '100%', height: 300 }}>
+                            <ResponsiveContainer>
+                                <PieChart>
+                                    <Pie
+                                        data={chartData}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={60}
+                                        outerRadius={80}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                                    >
+                                        {chartData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip formatter={(value) => [value, 'Estudiantes']} />
+                                    <Legend />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+                    ) : (
+                        <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', marginTop: '2rem' }}>No hay datos suficientes para graficar.</p>
+                    )}
                 </div>
             </div>
         </div>
