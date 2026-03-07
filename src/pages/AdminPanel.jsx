@@ -286,7 +286,7 @@ export default function AdminPanel() {
             };
 
             if (editingEstudiante) {
-                await updateDoc(doc(db, 'estudiantes', editingEstudiante), estudianteData);
+                await setDoc(doc(db, 'estudiantes', editingEstudiante), estudianteData, { merge: true });
                 await logActivity('Actualizó Estudiante', `Se actualizó la ficha técnica del alumno ${estudianteData.nombre}.`);
                 showMessage('success', 'Ficha del estudiante actualizada correctamente.');
             } else {
