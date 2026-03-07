@@ -1,0 +1,101 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    function hasRole(role) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/docentes/$(request.auth.uid)).data.roles.hasAny([role]);
+    }
+
+    function isStaff() {
+      return hasRole('administrador') || hasRole('equipo_conduccion') ||
+             hasRole('docente') || hasRole('docente_area');
+    }
+
+    function isAdminOrConduccion() {
+      return hasRole('administrador') || hasRole('equipo_conduccion');
+    }
+
+    // ── docentes collection ──────────────────────────────────
+    match /docentes/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) || isAdminOrConduccion();
+    }
+
+    // ── estudiantes collection ──────────────────────────────
+    match /estudiantes/{studentId} {
+      allow read: if isSignedIn();
+      allow write: if isStaff();
+    }
+
+    // ── cursos collection ────────────────────────────────────
+    match /cursos/{cursoId} {
+      allow read: if isSignedIn();
+      allow write: if isStaff();
+
+      match /calificaciones/{calId} {
+        allow read: if isSignedIn();
+        allow write: if isStaff();
+      }
+    }
+
+    // ── mensajes (broadcasts) ────────────────────────────────
+    match /mensajes/{msgId} {
+      // Anyone authenticated can read (filtering done client-side)
+      allow read: if isSignedIn();
+      // Only staff can create/update; anyone can mark as read (leido field)
+      allow create: if isStaff();
+      allow update: if isStaff() || (
+        isSignedIn() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['leido'])
+      );
+      allow delete: if isAdminOrConduccion();
+    }
+
+    // ── chats (direct messages) ──────────────────────────────
+    match /chats/{chatId} {
+      // Only participants can read/write the chat doc
+      allow read: if isSignedIn() &&
+        request.auth.uid in resource.data.participantes;
+
+      allow create: if isSignedIn() &&
+        request.auth.uid in request.resource.data.participantes;
+
+      allow update: if isSignedIn() &&
+        request.auth.uid in resource.data.participantes;
+
+      // ── Chat messages subcollection ──────────────────────
+      match /mensajes/{mensajeId} {
+        allow read: if isSignedIn() &&
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantes;
+
+        allow create: if isSignedIn() &&
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantes &&
+          request.resource.data.enviadoPor == request.auth.uid;
+
+        allow update: if isSignedIn() &&
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantes;
+      }
+    }
+
+    // ── audit / logs ─────────────────────────────────────────
+    match /auditLogs/{logId} {
+      allow read: if isAdminOrConduccion();
+      allow write: if isSignedIn();
+    }
+
+    // ── configuracion ─────────────────────────────────────────
+    match /configuracion/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+  }
+}

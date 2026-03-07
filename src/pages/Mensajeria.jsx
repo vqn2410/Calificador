@@ -391,6 +391,8 @@ function ChatsTab({ currentUser, activeRole }) {
     const [showNewChat, setShowNewChat] = useState(false);
     const [userSearch, setUserSearch] = useState('');
 
+    const [queryError, setQueryError] = useState('');
+
     // Load conversations for this user
     useEffect(() => {
         if (!uid) return;
@@ -399,12 +401,27 @@ function ChatsTab({ currentUser, activeRole }) {
             where('participantes', 'array-contains', uid),
             orderBy('ultimoTimestamp', 'desc')
         );
-        const unsub = onSnapshot(q, snap => {
-            setConversations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-            setLoading(false);
-        });
+        const unsub = onSnapshot(q,
+            snap => {
+                setConversations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                setLoading(false);
+                setQueryError('');
+            },
+            err => {
+                console.error('Chats query error:', err);
+                setLoading(false);
+                if (err.code === 'failed-precondition') {
+                    setQueryError('⚙️ El índice de mensajes se está construyendo en Firebase (puede tardar 1-5 min). Recargá la página en unos instantes.');
+                } else if (err.code === 'permission-denied') {
+                    setQueryError('🔒 Sin permisos para ver chats. Cerrá sesión y volvé a ingresar.');
+                } else {
+                    setQueryError('Error al cargar conversaciones: ' + err.message);
+                }
+            }
+        );
         return () => unsub();
     }, [uid]);
+
 
     // Load all users for new chat
     useEffect(() => {
@@ -477,6 +494,12 @@ function ChatsTab({ currentUser, activeRole }) {
                         ))}
                         {filtered.length === 0 && <p style={{ padding: '0.5rem', margin: 0, color: 'var(--color-text-muted)', fontSize: '0.82rem' }}>Sin resultados</p>}
                     </div>
+                </div>
+            )}
+
+            {queryError && (
+                <div style={{ padding: '0.9rem 1.1rem', backgroundColor: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 10, marginBottom: '1rem', fontSize: '0.84rem', color: '#92400e' }}>
+                    {queryError}
                 </div>
             )}
 
