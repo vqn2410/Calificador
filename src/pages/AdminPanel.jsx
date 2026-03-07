@@ -5,6 +5,7 @@ import { collection, getDocs, addDoc, updateDoc, doc, setDoc, deleteDoc, query, 
 import { db, firebaseConfig } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import { ShieldCheck, UserPlus, Users, GraduationCap, ArrowRightCircle, RefreshCcw, CheckSquare, Trash2, Edit, FileText, UploadCloud, Activity } from 'lucide-react';
+import InformesConduccion from './InformesConduccion';
 
 const adminApp = initializeApp(firebaseConfig, 'AdminSecondaryApp');
 const secondaryAuth = getAuth(adminApp);
@@ -532,6 +533,12 @@ export default function AdminPanel() {
                 >
                     <Activity size={18} /> Registro de Movimientos
                 </button>
+                <button
+                    className={`btn ${activeTab === 'informes_c' ? 'btn-primary' : 'btn-outline'}`}
+                    onClick={() => setActiveTab('informes_c')}
+                >
+                    <FileText size={18} /> Informes de Calificación
+                </button>
             </div>
 
             {activeTab === 'docentes' && (
@@ -575,6 +582,9 @@ export default function AdminPanel() {
                                     </label>
                                     <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                         <input type="checkbox" checked={newDocente.roles.includes('administrador')} onChange={() => handleRoleToggle('administrador')} /> Administrador Institucional
+                                    </label>
+                                    <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <input type="checkbox" checked={newDocente.roles.includes('equipo_conduccion')} onChange={() => handleRoleToggle('equipo_conduccion')} /> Equipo de Conducción
                                     </label>
                                     <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                         <input type="checkbox" checked={newDocente.roles.includes('familia')} onChange={() => handleRoleToggle('familia')} /> Familiar
@@ -651,7 +661,7 @@ export default function AdminPanel() {
                                                 <div style={{ fontWeight: 600 }}>{d.displayName}</div>
                                                 <div className="flex gap-1 flex-wrap mt-1">
                                                     {(d.roles || (d.role ? [d.role] : ['docente'])).map((rolName, i) => (
-                                                        <span key={i} className={`badge ${rolName === 'administrador' ? 'badge-error' : rolName === 'familia' ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.65rem' }}>
+                                                        <span key={i} className={`badge ${['administrador', 'equipo_conduccion'].includes(rolName) ? 'badge-error' : rolName === 'familia' ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.65rem' }}>
                                                             {rolName === 'docente' ? 'Titular' : rolName === 'docente_area' ? `Área` : rolName.toUpperCase()}
                                                         </span>
                                                     ))}
@@ -885,48 +895,47 @@ export default function AdminPanel() {
                     </div>
                 </div>
             )}
-
             {activeTab === 'actividad' && (
-                <div className="card">
-                    <h3 className="mb-4 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <Activity size={20} color="var(--color-primary)" />
-                            Auditoría de Actividad e Ingresos
-                        </div>
-                        <button onClick={fetchLogs} className="btn"><RefreshCcw size={16} /></button>
+                <div className="card w-full">
+                    <h3 className="mb-4 flex items-center gap-2">
+                        <Activity color="var(--color-primary)" />
+                        Registro Histórico de Movimientos
                     </h3>
-                    <p className="mb-4">Este espacio almacena todas las acciones relevantes y de seguridad ejecutadas en la plataforma.</p>
-
-                    {loadingLogs ? <p>Generando sábana de informes...</p> : (
-                        <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                    <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                        {loadingLogs ? (
+                            <p>Cargando registros...</p>
+                        ) : logs.length === 0 ? (
+                            <p>No se encontraron movimientos registrados.</p>
+                        ) : (
+                            <table className="app-table">
                                 <thead>
-                                    <tr style={{ borderBottom: '2px solid var(--color-border)', position: 'sticky', top: 0, backgroundColor: 'white' }}>
-                                        <th style={{ padding: '0.75rem', textAlign: 'left' }}>Fecha y Hora</th>
-                                        <th style={{ padding: '0.75rem', textAlign: 'left' }}>Autor (Usuario)</th>
-                                        <th style={{ padding: '0.75rem', textAlign: 'left' }}>Tipo de Acción</th>
-                                        <th style={{ padding: '0.75rem', textAlign: 'left' }}>Detalles de Respaldo</th>
+                                    <tr>
+                                        <th>Fecha y Hora</th>
+                                        <th>Operador (Usuario)</th>
+                                        <th>Tipo de Acción</th>
+                                        <th>Detalles Técnicos</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {logs.map((log) => (
-                                        <tr key={log.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                            <td style={{ padding: '0.75rem', color: 'var(--color-text-muted)' }}>
-                                                {new Date(log.fecha).toLocaleString()}
+                                        <tr key={log.id}>
+                                            <td style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                                                {new Date(log.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}
                                             </td>
-                                            <td style={{ padding: '0.75rem', fontWeight: 'bold' }}>{log.usuario}</td>
-                                            <td style={{ padding: '0.75rem' }}>
-                                                <span className="badge badge-warning">{log.accion}</span>
-                                            </td>
-                                            <td style={{ padding: '0.75rem' }}>{log.detalles}</td>
+                                            <td style={{ fontWeight: 600 }}>{log.usuario}</td>
+                                            <td><span className="badge badge-warning">{log.accion}</span></td>
+                                            <td style={{ fontSize: '0.85rem' }}>{log.detalles}</td>
                                         </tr>
                                     ))}
-                                    {logs.length === 0 && <tr><td colSpan="4" style={{ padding: '1rem', textAlign: 'center' }}>No existen registros recienetes.</td></tr>}
                                 </tbody>
                             </table>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
+            )}
+
+            {activeTab === 'informes_c' && (
+                <InformesConduccion />
             )}
         </div>
     );

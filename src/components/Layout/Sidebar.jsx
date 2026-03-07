@@ -96,7 +96,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                     </NavLink>
                 )}
 
-                {currentUser?.roles?.includes('administrador') && (
+                {(currentUser?.roles?.includes('administrador') || currentUser?.roles?.includes('equipo_conduccion')) && (
                     <NavLink
                         to="/admin"
                         onClick={handleLinkClick}
@@ -108,7 +108,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                         })}
                     >
                         <ShieldCheck size={20} />
-                        <span style={{ fontWeight: 500 }}>Administración</span>
+                        <span>Administración General</span>
                     </NavLink>
                 )}
             </nav>

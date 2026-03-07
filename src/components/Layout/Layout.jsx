@@ -61,7 +61,7 @@ export default function Layout() {
                     </NavLink>
                 )}
 
-                {currentUser?.roles?.includes('administrador') && (
+                {(currentUser?.roles?.includes('administrador') || currentUser?.roles?.includes('equipo_conduccion')) && (
                     <NavLink to="/admin" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}>
                         <ShieldCheck size={20} />
                         <span>Admin</span>
