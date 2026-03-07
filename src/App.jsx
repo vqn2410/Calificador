@@ -14,10 +14,11 @@ import ForcePasswordChange from './pages/ForcePasswordChange';
 import ForgotPassword from './pages/ForgotPassword';
 import MyStudents from './pages/MyStudents';
 import RolePickerOverlay from './components/Layout/RolePickerOverlay';
+import LockScreen from './components/Layout/LockScreen';
 import { useEffect } from 'react';
 
 function PrivateRoute({ children }) {
-  const { currentUser, needsRolePicker } = useAuth();
+  const { currentUser, needsRolePicker, isLocked } = useAuth();
 
   if (!currentUser) {
     return <Navigate to="/login" replace />;
@@ -27,7 +28,12 @@ function PrivateRoute({ children }) {
     return <Navigate to="/force-password-change" replace />;
   }
 
-  // Show role picker fullscreen when user just logged in with multiple roles
+  // Lock screen has highest priority (still authenticated, just locked)
+  if (isLocked) {
+    return <LockScreen />;
+  }
+
+  // Show role picker on fresh multi-role login
   if (needsRolePicker) {
     return <RolePickerOverlay />;
   }

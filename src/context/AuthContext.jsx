@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
     onAuthStateChanged,
     signInWithEmailAndPassword,
@@ -9,17 +9,77 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 
 const AuthContext = createContext();
+const INACTIVITY_LIMIT_MS = 60 * 60 * 1000; // 1 hour
 
-export const useAuth = () => {
-    return useContext(AuthContext);
-};
+export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }) {
     const [currentUser, setCurrentUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeRole, setActiveRole] = useState(null);
     const [needsRolePicker, setNeedsRolePicker] = useState(false);
+    const [isLocked, setIsLocked] = useState(false);
 
+    const inactivityTimer = useRef(null);
+
+    /* ── Inactivity tracking ────────────────────────────────── */
+    function resetInactivityTimer() {
+        if (!currentUser) return;
+        localStorage.setItem('lastActivity', Date.now().toString());
+        clearTimeout(inactivityTimer.current);
+        inactivityTimer.current = setTimeout(() => {
+            setIsLocked(true);
+        }, INACTIVITY_LIMIT_MS);
+    }
+
+    function lockSession() {
+        setIsLocked(true);
+    }
+
+    function unlockSession() {
+        setIsLocked(false);
+        resetInactivityTimer();
+    }
+
+    // Attach activity listeners while logged in
+    useEffect(() => {
+        if (!currentUser) return;
+
+        const events = ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'];
+        const handler = () => resetInactivityTimer();
+        events.forEach(e => window.addEventListener(e, handler, { passive: true }));
+
+        // Check on focus (tab switch back)
+        const onFocus = () => {
+            const last = parseInt(localStorage.getItem('lastActivity') || '0');
+            if (Date.now() - last > INACTIVITY_LIMIT_MS) {
+                setIsLocked(true);
+            }
+        };
+        window.addEventListener('focus', onFocus);
+
+        // Also check on visibility change
+        const onVisible = () => {
+            if (document.visibilityState === 'visible') {
+                const last = parseInt(localStorage.getItem('lastActivity') || '0');
+                if (last && Date.now() - last > INACTIVITY_LIMIT_MS) {
+                    setIsLocked(true);
+                }
+            }
+        };
+        document.addEventListener('visibilitychange', onVisible);
+
+        resetInactivityTimer();
+
+        return () => {
+            events.forEach(e => window.removeEventListener(e, handler));
+            window.removeEventListener('focus', onFocus);
+            document.removeEventListener('visibilitychange', onVisible);
+            clearTimeout(inactivityTimer.current);
+        };
+    }, [currentUser]);
+
+    /* ── Auth functions ─────────────────────────────────────── */
     async function login(email, password) {
         return signInWithEmailAndPassword(auth, email, password);
     }
@@ -30,8 +90,11 @@ export function AuthProvider({ children }) {
 
     function logout() {
         localStorage.removeItem('activeRole');
+        localStorage.removeItem('lastActivity');
+        clearTimeout(inactivityTimer.current);
         setActiveRole(null);
         setNeedsRolePicker(false);
+        setIsLocked(false);
         return signOut(auth);
     }
 
@@ -42,15 +105,16 @@ export function AuthProvider({ children }) {
         }
     }
 
-    // Called from the role picker on fresh login
     function confirmRole(role) {
         if (currentUser && currentUser.roles.includes(role)) {
             setActiveRole(role);
             localStorage.setItem('activeRole', role);
             setNeedsRolePicker(false);
+            resetInactivityTimer();
         }
     }
 
+    /* ── Auth state listener ────────────────────────────────── */
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
@@ -65,7 +129,6 @@ export function AuthProvider({ children }) {
                             userData.roles = [userData.role];
                         }
                     }
-
                     if (!userData.roles) userData.roles = ['familia'];
 
                     if (user.email === 'vergaranicolas209@gmail.com' && !userData.roles.includes('administrador')) {
@@ -99,23 +162,23 @@ export function AuthProvider({ children }) {
 
                     setCurrentUser(userObj);
 
-                    // Record last login timestamp (non-critical)
                     try {
                         await updateDoc(docRef, { lastLogin: new Date().toISOString() });
                     } catch (_) { /* ignore */ }
 
-                    // ── Role selection logic ──────────────────────────────
+                    // Check if session was locked due to inactivity on a previous page load
+                    const lastActivity = parseInt(localStorage.getItem('lastActivity') || '0');
+                    const wasInactive = lastActivity && (Date.now() - lastActivity > INACTIVITY_LIMIT_MS);
+
                     const savedRole = localStorage.getItem('activeRole');
                     if (savedRole && finalRoles.includes(savedRole)) {
-                        // Returning user (page refresh): restore saved role
                         setActiveRole(savedRole);
                         setNeedsRolePicker(false);
+                        if (wasInactive) setIsLocked(true);
                     } else if (finalRoles.length > 1) {
-                        // Fresh login, multiple roles → show picker
                         setActiveRole(null);
                         setNeedsRolePicker(true);
                     } else {
-                        // Single role: auto-select, no picker needed
                         setActiveRole(finalRoles[0]);
                         setNeedsRolePicker(false);
                     }
@@ -130,6 +193,7 @@ export function AuthProvider({ children }) {
                 setCurrentUser(null);
                 setActiveRole(null);
                 setNeedsRolePicker(false);
+                setIsLocked(false);
             }
             setLoading(false);
         });
@@ -141,11 +205,14 @@ export function AuthProvider({ children }) {
         currentUser,
         activeRole,
         needsRolePicker,
+        isLocked,
         login,
         resetPassword,
         logout,
         switchRole,
         confirmRole,
+        lockSession,
+        unlockSession,
     };
 
     return (
