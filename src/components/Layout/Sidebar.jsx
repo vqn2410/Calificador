@@ -8,12 +8,37 @@ import {
     ShieldCheck,
     Eye,
     Map,
-    X
+    X,
+    MessageSquare,
+    Settings,
 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '../../config/firebase';
 
 export default function Sidebar({ isOpen, setIsOpen }) {
     const { currentUser, logout, activeRole, switchRole } = useAuth();
     const navigate = useNavigate();
+    const [unreadCount, setUnreadCount] = useState(0);
+
+    // Track unread messages
+    useEffect(() => {
+        if (!currentUser?.uid) return;
+        const q = query(collection(db, 'mensajes'), orderBy('fechaEnvio', 'desc'));
+        const unsub = onSnapshot(q, (snap) => {
+            const uid = currentUser.uid;
+            const count = snap.docs
+                .map(d => d.data())
+                .filter(m => {
+                    const visible = activeRole === 'familia'
+                        ? m.audiencia === 'familias' || m.audiencia === 'todos'
+                        : true;
+                    return visible && !(m.leido?.[uid]);
+                }).length;
+            setUnreadCount(count);
+        });
+        return () => unsub();
+    }, [currentUser?.uid, activeRole]);
 
     const roleLabels = {
         'administrador': 'Administrador',
@@ -184,6 +209,42 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                         <span>Administración General</span>
                     </NavLink>
                 )}
+
+                {/* ── Secciones globales ── */}
+                <NavLink
+                    to="/mensajeria"
+                    onClick={handleLinkClick}
+                    style={({ isActive }) => ({
+                        display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem',
+                        borderRadius: 'var(--radius-md)', color: 'white', opacity: isActive ? 1 : 0.7,
+                        backgroundColor: isActive ? 'rgba(255,255,255,0.1)' : 'transparent',
+                        transition: 'var(--transition)', position: 'relative',
+                    })}
+                >
+                    <div style={{ position: 'relative' }}>
+                        <MessageSquare size={20} />
+                        {unreadCount > 0 && (
+                            <span style={{ position: 'absolute', top: -6, right: -8, backgroundColor: '#ef4444', color: 'white', borderRadius: '50%', width: 16, height: 16, fontSize: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
+                                {unreadCount > 9 ? '9+' : unreadCount}
+                            </span>
+                        )}
+                    </div>
+                    <span style={{ fontWeight: 500 }}>Mensajería</span>
+                </NavLink>
+
+                <NavLink
+                    to="/configuracion"
+                    onClick={handleLinkClick}
+                    style={({ isActive }) => ({
+                        display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem',
+                        borderRadius: 'var(--radius-md)', color: 'white', opacity: isActive ? 1 : 0.7,
+                        backgroundColor: isActive ? 'rgba(255,255,255,0.1)' : 'transparent',
+                        transition: 'var(--transition)'
+                    })}
+                >
+                    <Settings size={20} />
+                    <span style={{ fontWeight: 500 }}>Configuración</span>
+                </NavLink>
             </nav>
 
             <div style={{ marginTop: 'auto', paddingTop: '2rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>

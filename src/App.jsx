@@ -1,48 +1,63 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import {
+  BrowserRouter as Router, Routes, Route,
+  Navigate, useNavigate, useLocation
+} from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { lazy, Suspense, useEffect } from 'react';
+
+// ── Always-loaded (small, always needed) ────────────────────
 import Layout from './components/Layout/Layout';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Courses from './pages/Courses';
-import CourseDetails from './pages/CourseDetails';
-import StudentProfile from './pages/StudentProfile';
-import AdminPanel from './pages/AdminPanel';
-import FamiliasView from './pages/FamiliasView';
-import AuditViews from './pages/AuditViews';
-import StaffOverview from './pages/StaffOverview';
-import ForcePasswordChange from './pages/ForcePasswordChange';
-import ForgotPassword from './pages/ForgotPassword';
-import MyStudents from './pages/MyStudents';
 import RolePickerOverlay from './components/Layout/RolePickerOverlay';
 import LockScreen from './components/Layout/LockScreen';
-import { useEffect } from 'react';
 
+// ── Lazy-loaded pages (loaded only when visited) ─────────────
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Courses = lazy(() => import('./pages/Courses'));
+const CourseDetails = lazy(() => import('./pages/CourseDetails'));
+const StudentProfile = lazy(() => import('./pages/StudentProfile'));
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
+const FamiliasView = lazy(() => import('./pages/FamiliasView'));
+const AuditViews = lazy(() => import('./pages/AuditViews'));
+const StaffOverview = lazy(() => import('./pages/StaffOverview'));
+const ForcePasswordChange = lazy(() => import('./pages/ForcePasswordChange'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const MyStudents = lazy(() => import('./pages/MyStudents'));
+const Configuracion = lazy(() => import('./pages/Configuracion'));
+const Mensajeria = lazy(() => import('./pages/Mensajeria'));
+const InformesConduccion = lazy(() => import('./pages/InformesConduccion'));
+
+// ── Page loading fallback ────────────────────────────────────
+function PageLoader() {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      height: '60vh', flexDirection: 'column', gap: '1rem',
+    }}>
+      <div style={{
+        width: 40, height: 40, borderRadius: '50%',
+        border: '3px solid var(--color-border)',
+        borderTopColor: 'var(--color-primary)',
+        animation: 'spin 0.7s linear infinite',
+      }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>Cargando...</span>
+    </div>
+  );
+}
+
+// ── Route guards ─────────────────────────────────────────────
 function PrivateRoute({ children }) {
   const { currentUser, needsRolePicker, isLocked } = useAuth();
 
-  if (!currentUser) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (currentUser.mustChangePassword) {
-    return <Navigate to="/force-password-change" replace />;
-  }
-
-  // Lock screen has highest priority (still authenticated, just locked)
-  if (isLocked) {
-    return <LockScreen />;
-  }
-
-  // Show role picker on fresh multi-role login
-  if (needsRolePicker) {
-    return <RolePickerOverlay />;
-  }
+  if (!currentUser) return <Navigate to="/login" replace />;
+  if (currentUser.mustChangePassword) return <Navigate to="/force-password-change" replace />;
+  if (isLocked) return <LockScreen />;
+  if (needsRolePicker) return <RolePickerOverlay />;
 
   return children;
 }
 
-// Checks activeRole against allowedRoles for the current route.
-// If the role doesn't have access, redirects to home.
 function RoleRoute({ children, allowedRoles }) {
   const { activeRole } = useAuth();
   const navigate = useNavigate();
@@ -54,79 +69,68 @@ function RoleRoute({ children, allowedRoles }) {
     }
   }, [activeRole, location.pathname]);
 
-  if (!activeRole || (allowedRoles && !allowedRoles.includes(activeRole))) {
-    return null; // Render nothing while redirecting
-  }
-
+  if (!activeRole || (allowedRoles && !allowedRoles.includes(activeRole))) return null;
   return children;
 }
+
+// ── App ──────────────────────────────────────────────────────
+const STAFF = ['administrador', 'equipo_conduccion', 'docente', 'docente_area'];
+const ADMIN = ['administrador', 'equipo_conduccion'];
 
 function App() {
   return (
     <AuthProvider>
       <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/force-password-change" element={<ForcePasswordChange />} />
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/force-password-change" element={<ForcePasswordChange />} />
 
-          {/* Rutas Protegidas */}
-          <Route path="/" element={
-            <PrivateRoute>
-              <Layout />
-            </PrivateRoute>
-          }>
-            <Route index element={<Dashboard />} />
+            <Route path="/" element={
+              <PrivateRoute><Layout /></PrivateRoute>
+            }>
+              <Route index element={<Dashboard />} />
 
-            {/* Solo Admin y Conducción */}
-            <Route path="admin" element={
-              <RoleRoute allowedRoles={['administrador', 'equipo_conduccion']}>
-                <AdminPanel />
-              </RoleRoute>
-            } />
+              <Route path="admin" element={
+                <RoleRoute allowedRoles={ADMIN}><AdminPanel /></RoleRoute>
+              } />
 
-            {/* Solo personal docente / no familias */}
-            <Route path="cursos" element={
-              <RoleRoute allowedRoles={['administrador', 'equipo_conduccion', 'docente', 'docente_area']}>
-                <Courses />
-              </RoleRoute>
-            } />
-            <Route path="cursos/:courseId" element={
-              <RoleRoute allowedRoles={['administrador', 'equipo_conduccion', 'docente', 'docente_area']}>
-                <CourseDetails />
-              </RoleRoute>
-            } />
-            <Route path="mis-estudiantes" element={
-              <RoleRoute allowedRoles={['administrador', 'equipo_conduccion', 'docente', 'docente_area']}>
-                <MyStudents />
-              </RoleRoute>
-            } />
-            <Route path="estudiantes/:studentId" element={
-              <RoleRoute allowedRoles={['administrador', 'equipo_conduccion', 'docente', 'docente_area']}>
-                <StudentProfile />
-              </RoleRoute>
-            } />
-            <Route path="audit-views" element={
-              <RoleRoute allowedRoles={['administrador', 'equipo_conduccion', 'docente', 'docente_area']}>
-                <AuditViews />
-              </RoleRoute>
-            } />
-            <Route path="organizacion-institucional" element={
-              <RoleRoute allowedRoles={['administrador', 'equipo_conduccion', 'docente', 'docente_area']}>
-                <StaffOverview />
-              </RoleRoute>
-            } />
+              <Route path="cursos" element={
+                <RoleRoute allowedRoles={STAFF}><Courses /></RoleRoute>
+              } />
+              <Route path="cursos/:courseId" element={
+                <RoleRoute allowedRoles={STAFF}><CourseDetails /></RoleRoute>
+              } />
+              <Route path="mis-estudiantes" element={
+                <RoleRoute allowedRoles={STAFF}><MyStudents /></RoleRoute>
+              } />
+              <Route path="estudiantes/:studentId" element={
+                <RoleRoute allowedRoles={STAFF}><StudentProfile /></RoleRoute>
+              } />
+              <Route path="audit-views" element={
+                <RoleRoute allowedRoles={STAFF}><AuditViews /></RoleRoute>
+              } />
+              <Route path="organizacion-institucional" element={
+                <RoleRoute allowedRoles={STAFF}><StaffOverview /></RoleRoute>
+              } />
+              <Route path="informes" element={
+                <RoleRoute allowedRoles={ADMIN}><InformesConduccion /></RoleRoute>
+              } />
 
-            {/* Solo familias */}
-            <Route path="mis-hijos" element={
-              <RoleRoute allowedRoles={['familia']}>
-                <FamiliasView />
-              </RoleRoute>
-            } />
-          </Route>
+              {/* Global (all roles) */}
+              <Route path="mensajeria" element={<Mensajeria />} />
+              <Route path="configuracion" element={<Configuracion />} />
 
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+              {/* Familias only */}
+              <Route path="mis-hijos" element={
+                <RoleRoute allowedRoles={['familia']}><FamiliasView /></RoleRoute>
+              } />
+            </Route>
+
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </Router>
     </AuthProvider>
   );
