@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { User, Download, GraduationCap, ChevronLeft, Calendar } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { useAuth } from '../context/AuthContext';
 
 export default function StudentProfile() {
     const { studentId } = useParams();
     const navigate = useNavigate();
+    const { currentUser } = useAuth();
     const [student, setStudent] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -40,6 +42,29 @@ export default function StudentProfile() {
         }
         fetchStudent();
     }, [studentId]);
+
+    // View tracking for families
+    useEffect(() => {
+        if (!loading && student && currentUser?.roles?.includes('familia')) {
+            const trackView = async () => {
+                const isFirstTimeToday = true; // optional logic, but we can just blindly log it.
+                if (isFirstTimeToday) {
+                    try {
+                        const studentRef = doc(db, 'estudiantes', studentId);
+                        await updateDoc(studentRef, {
+                            vistasFamilia: arrayUnion({
+                                fecha: new Date().toISOString(),
+                                usuario: currentUser.email || currentUser.dni
+                            })
+                        });
+                    } catch (err) {
+                        console.error('Error tracking view', err);
+                    }
+                }
+            };
+            trackView();
+        }
+    }, [student, currentUser, loading, studentId]);
 
     if (loading) return <div className="container" style={{ paddingTop: '100px' }}><h2>Cargando trayectoria...</h2></div>;
 
@@ -89,6 +114,11 @@ export default function StudentProfile() {
         return inf?.inasistencias || '';
     };
 
+    const getDiasHabiles = (trimName) => {
+        const inf = student?.informes?.find(i => i.trimestre === trimName);
+        return inf?.diasHabiles || '';
+    };
+
     const getObservacion = (trimName) => {
         const inf = student?.informes?.find(i => i.trimestre === trimName);
         return inf?.general || '';
@@ -99,6 +129,77 @@ export default function StudentProfile() {
         if (['Sobresaliente', 'Muy bueno', 'Bueno', '8', '9', '10'].includes(calc)) return 'var(--color-success)';
         if (['Desaprobado', 'Regular', '1', '2', '3'].includes(calc)) return 'var(--color-error)';
         return 'var(--color-text-main)';
+    };
+
+    const getFinalGrade = (area) => {
+        const manualFinal = getGrade('Informe Final', area);
+        if (manualFinal) return manualFinal;
+
+        const val1 = getGrade('1er Trimestre', area);
+        const val2 = getGrade('2do Trimestre', area);
+        const val3 = getGrade('3er Trimestre', area);
+        const pe = getGrade('Período Extendido', area);
+
+        if (!val1 && !val2 && !val3 && !pe) return '';
+
+        let isConceptual = false;
+        const conceptualScores = { 'Sobresaliente': 10, 'Muy bueno': 8, 'Bueno': 7, 'Regular': 5, 'Desaprobado': 3, 'S': 10, 'MB': 8, 'B': 7, 'R': 5, 'D': 3 };
+
+        const parseVal = (val) => {
+            if (!val) return null;
+            if (conceptualScores[val]) {
+                isConceptual = true;
+                return conceptualScores[val];
+            }
+            const num = parseFloat(val);
+            return isNaN(num) ? null : num;
+        };
+
+        const numToConceptual = (val) => {
+            if (val >= 9.5) return 'Sobresaliente';
+            if (val >= 8) return 'Muy bueno';
+            if (val >= 7) return 'Bueno';
+            if (val >= 4) return 'Regular';
+            return 'Desaprobado';
+        }
+
+        const n1 = parseVal(val1);
+        const n2 = parseVal(val2);
+        const n3 = parseVal(val3);
+
+        const sum = [n1, n2, n3].reduce((a, b) => a + (b || 0), 0);
+        const count = [n1, n2, n3].filter(n => n !== null).length;
+
+        let finalNum = count > 0 ? (sum / count) : null;
+        let finalStatus = '';
+
+        if (finalNum !== null) {
+            const passed = finalNum >= 7;
+            if (!passed && pe) {
+                return pe; // Si desaprobó y hay nota de PE, queda la nota de PE
+            }
+            if (isConceptual) {
+                finalStatus = numToConceptual(finalNum);
+            } else {
+                finalStatus = Math.round(finalNum).toString();
+            }
+        }
+
+        return finalStatus;
+    };
+
+    const sumValues = (trims, getter) => trims.reduce((acc, trim) => {
+        const val = parseFloat(getter(trim));
+        return acc + (!isNaN(val) ? val : 0);
+    }, 0);
+
+    const getTrimestreFromDate = (isoDate) => {
+        if (!isoDate) return '-';
+        const m = new Date(isoDate).getMonth() + 1;
+        if (m >= 3 && m <= 5) return '1er Trimestre';
+        if (m >= 6 && m <= 8) return '2do Trimestre';
+        if (m >= 9 && m <= 12) return '3er Trimestre';
+        return 'Fuera de Término / Verano';
     };
 
     return (
@@ -252,13 +353,17 @@ export default function StudentProfile() {
                                         <td style={{ color: getStatusColor(getGrade('1er Trimestre', area)) }}>{formatGrade(getGrade('1er Trimestre', area))}</td>
                                         <td style={{ color: getStatusColor(getGrade('2do Trimestre', area)) }}>{formatGrade(getGrade('2do Trimestre', area))}</td>
                                         <td style={{ color: getStatusColor(getGrade('3er Trimestre', area)) }}>{formatGrade(getGrade('3er Trimestre', area))}</td>
-                                        <td></td>
-                                        <td></td>
+                                        <td style={{ color: getStatusColor(getGrade('Período Extendido', area)) }}>{formatGrade(getGrade('Período Extendido', area))}</td>
+                                        <td style={{ color: getStatusColor(getFinalGrade(area)) }}>{formatGrade(getFinalGrade(area))}</td>
                                     </tr>
                                 ))}
                                 <tr>
                                     <td className="area-title" style={{ marginTop: '4px' }}>DÍAS HÁBILES</td>
-                                    <td></td><td></td><td></td><td></td><td></td>
+                                    <td>{getDiasHabiles('1er Trimestre')}</td>
+                                    <td>{getDiasHabiles('2do Trimestre')}</td>
+                                    <td>{getDiasHabiles('3er Trimestre')}</td>
+                                    <td></td>
+                                    <td style={{ fontWeight: 800 }}>{sumValues(trims, getDiasHabiles) || ''}</td>
                                 </tr>
                                 <tr>
                                     <td className="area-title">INASISTENCIAS</td>
@@ -266,7 +371,7 @@ export default function StudentProfile() {
                                     <td>{getInasistencias('2do Trimestre')}</td>
                                     <td>{getInasistencias('3er Trimestre')}</td>
                                     <td></td>
-                                    <td></td>
+                                    <td style={{ fontWeight: 800 }}>{sumValues(trims, getInasistencias) || ''}</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -322,6 +427,43 @@ export default function StudentProfile() {
                     </table>
                 </div>
             </div>
+
+            {/* AUDITORIA DE VISTAS (SOLO PARA DOCENTES/DIRECTIVOS) */}
+            {!currentUser?.roles?.includes('familia') && (
+                <div className="card mt-4 no-print" style={{ border: '2px dashed var(--color-border)', backgroundColor: '#f9fafb' }}>
+                    <h3 className="mb-4 flex items-center gap-2" style={{ color: 'var(--color-primary)' }}>
+                        <User size={20} />
+                        Auditoría: Registro de Lectura (Familia)
+                    </h3>
+
+                    {student?.vistasFamilia && student.vistasFamilia.length > 0 ? (
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                                <thead>
+                                    <tr style={{ backgroundColor: '#e5e7eb', textAlign: 'left' }}>
+                                        <th style={{ padding: '0.75rem' }}>Trimestre Estimado</th>
+                                        <th style={{ padding: '0.75rem' }}>Fecha de Lectura</th>
+                                        <th style={{ padding: '0.75rem' }}>Usuario (DNI / Correo)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {[...student.vistasFamilia].reverse().map((vista, idx) => (
+                                        <tr key={idx} style={{ borderBottom: '1px solid #d1d5db' }}>
+                                            <td style={{ padding: '0.75rem', fontWeight: 600 }}>{getTrimestreFromDate(vista.fecha)}</td>
+                                            <td style={{ padding: '0.75rem' }}>{new Date(vista.fecha).toLocaleString()}</td>
+                                            <td style={{ padding: '0.75rem' }}>{vista.usuario}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>
+                            Ningún familiar ha abierto el boletín de este estudiante aún.
+                        </p>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

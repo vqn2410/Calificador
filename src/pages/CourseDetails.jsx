@@ -16,6 +16,7 @@ export default function CourseDetails() {
     const [grades, setGrades] = useState({});
     const [generalComments, setGeneralComments] = useState({});
     const [inasistencias, setInasistencias] = useState({});
+    const [diasHabiles, setDiasHabiles] = useState({});
 
     // courseId is like "1A-TM"
     const grado = parseInt(courseId.charAt(0));
@@ -41,10 +42,10 @@ export default function CourseDetails() {
 
             setStudents(stData);
 
-            // Populate local grades state based on current selected trimester
             const currentGrades = {};
             const currentComments = {};
             const currentInasistencias = {};
+            const currentDiasHabiles = {};
 
             stData.forEach(st => {
                 const informeActivo = st.informes?.find(inf => inf.trimestre === trimestre);
@@ -52,16 +53,19 @@ export default function CourseDetails() {
                     currentGrades[st.id] = informeActivo.materias || {};
                     currentComments[st.id] = informeActivo.general || '';
                     currentInasistencias[st.id] = informeActivo.inasistencias || '';
+                    currentDiasHabiles[st.id] = informeActivo.diasHabiles || '';
                 } else {
                     currentGrades[st.id] = {};
                     currentComments[st.id] = '';
                     currentInasistencias[st.id] = '';
+                    currentDiasHabiles[st.id] = '';
                 }
             });
 
             setGrades(currentGrades);
             setGeneralComments(currentComments);
             setInasistencias(currentInasistencias);
+            setDiasHabiles(currentDiasHabiles);
 
         } catch (error) {
             console.error("Error fetching students:", error);
@@ -98,6 +102,13 @@ export default function CourseDetails() {
         }));
     };
 
+    const handleDiasHabilesChange = (studentId, value) => {
+        setDiasHabiles(prev => ({
+            ...prev,
+            [studentId]: value
+        }));
+    };
+
     const handleSaveGrades = async () => {
         setSaving(true);
         try {
@@ -112,7 +123,8 @@ export default function CourseDetails() {
                     trimestre: trimestre,
                     materias: grades[st.id] || {},
                     general: generalComments[st.id] || '',
-                    inasistencias: inasistencias[st.id] || ''
+                    inasistencias: inasistencias[st.id] || '',
+                    diasHabiles: diasHabiles[st.id] || ''
                 });
 
                 await updateDoc(studentRef, {
@@ -156,6 +168,8 @@ export default function CourseDetails() {
                         <option value="1er Trimestre">1er Trimestre</option>
                         <option value="2do Trimestre">2do Trimestre</option>
                         <option value="3er Trimestre">3er Trimestre</option>
+                        <option value="Período Extendido">Período Extendido</option>
+                        <option value="Informe Final">Informe Final</option>
                     </select>
 
                     <button className="btn btn-outline" onClick={() => window.print()}>
@@ -192,7 +206,7 @@ export default function CourseDetails() {
                                 {subjects.map((sub, i) => (
                                     <th key={i} className="vertical-text" style={{ padding: '1rem', width: '40px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle' }}>{sub.toUpperCase()}</th>
                                 ))}
-                                <th className="print-only vertical-text" style={{ padding: '1rem', width: '40px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle' }}>DÍAS HÁBILES</th>
+                                <th className="vertical-text" style={{ padding: '1rem', width: '40px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle' }}>DÍAS HÁBILES</th>
                                 <th className="vertical-text" style={{ padding: '1rem', width: '40px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle' }}>INASISTENCIAS</th>
                                 <th style={{ padding: '1rem', minWidth: '200px', textAlign: 'center', verticalAlign: 'middle' }}>OBSERVACIONES</th>
                             </tr>
@@ -245,15 +259,22 @@ export default function CourseDetails() {
                                             )}
                                         </td>
                                     ))}
-                                    <td className="print-only"></td>
                                     <td style={{ padding: '1rem', textAlign: 'center' }}>
                                         <input
-                                            className="input-field"
-                                            type="number" min="0" placeholder="-"
-                                            style={{ width: '60px', padding: '0.25rem 0.5rem', cursor: isStrictAreaTeacher ? 'not-allowed' : 'text' }}
+                                            className="input-field mb-0 text-center"
+                                            style={{ width: '50px', padding: '0.25rem' }}
+                                            type="number" min="0"
+                                            value={diasHabiles[st.id] || ''}
+                                            onChange={(e) => handleDiasHabilesChange(st.id, e.target.value)}
+                                        />
+                                    </td>
+                                    <td style={{ padding: '1rem', textAlign: 'center' }}>
+                                        <input
+                                            className="input-field mb-0 text-center"
+                                            style={{ width: '50px', padding: '0.25rem' }}
+                                            type="number" min="0" step="0.5"
                                             value={inasistencias[st.id] || ''}
                                             onChange={(e) => handleInasistenciasChange(st.id, e.target.value)}
-                                            disabled={isStrictAreaTeacher}
                                         />
                                     </td>
                                     <td style={{ padding: '1rem' }}>
