@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../config/firebase';
 import { GraduationCap, LogIn } from 'lucide-react';
 
 export default function Login() {
@@ -16,8 +18,20 @@ export default function Login() {
         try {
             setError('');
             setLoading(true);
-            const loginEmail = email.includes('@') ? email : `${email}@familia.com`;
-            await login(loginEmail, password);
+
+            let finalEmail = email.trim();
+            if (!finalEmail.includes('@')) {
+                // If it's a DNI, look up the real email from Firestore
+                const q = query(collection(db, 'docentes'), where('dni', '==', finalEmail));
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                    finalEmail = snap.docs[0].data().email;
+                } else {
+                    finalEmail = `${finalEmail}@familia.com`;
+                }
+            }
+
+            await login(finalEmail, password);
             navigate('/');
         } catch (err) {
             setError('Error al iniciar sesión. Verifique sus credenciales.');
