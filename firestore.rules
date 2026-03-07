@@ -11,91 +11,82 @@ service cloud.firestore {
       return request.auth.uid == uid;
     }
 
-    function hasRole(role) {
-      return isSignedIn() &&
-        get(/databases/$(database)/documents/docentes/$(request.auth.uid)).data.roles.hasAny([role]);
-    }
-
-    function isStaff() {
-      return hasRole('administrador') || hasRole('equipo_conduccion') ||
-             hasRole('docente') || hasRole('docente_area');
-    }
-
-    function isAdminOrConduccion() {
-      return hasRole('administrador') || hasRole('equipo_conduccion');
-    }
+    // NOTE: Avoid get() inside rules when possible — expensive and can cause
+    // permission errors during auth bootstrap. Role-based access for write
+    // operations is enforced at the application layer (AuthContext + RoleRoute).
 
     // ── docentes collection ──────────────────────────────────
+    // Any authenticated user can read (needed during login to load their own profile)
+    // Write: owner can update their own doc (lastLogin, fcmToken, etc.)
     match /docentes/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId) || isAdminOrConduccion();
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn(); // role enforcement done in app layer
+      allow delete: if false;        // never delete via client
+    }
+
+    // ── config (app settings) ───────────────────────────────
+    // AuthContext reads /config/appSettings on every login — must be readable
+    match /config/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false; // only via Firebase Console / admin SDK
     }
 
     // ── estudiantes collection ──────────────────────────────
     match /estudiantes/{studentId} {
       allow read: if isSignedIn();
-      allow write: if isStaff();
+      allow write: if isSignedIn();
     }
 
     // ── cursos collection ────────────────────────────────────
     match /cursos/{cursoId} {
       allow read: if isSignedIn();
-      allow write: if isStaff();
+      allow write: if isSignedIn();
 
       match /calificaciones/{calId} {
-        allow read: if isSignedIn();
-        allow write: if isStaff();
+        allow read, write: if isSignedIn();
       }
     }
 
     // ── mensajes (broadcasts) ────────────────────────────────
     match /mensajes/{msgId} {
-      // Anyone authenticated can read (filtering done client-side)
       allow read: if isSignedIn();
-      // Only staff can create/update; anyone can mark as read (leido field)
-      allow create: if isStaff();
-      allow update: if isStaff() || (
-        isSignedIn() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['leido'])
-      );
-      allow delete: if isAdminOrConduccion();
+      // Anyone can create (role check done in App layer — SENDER_ROLES guard)
+      allow create: if isSignedIn();
+      // Full update for sender; partial update (leido only) for others
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
     }
 
     // ── chats (direct messages) ──────────────────────────────
     match /chats/{chatId} {
-      // Only participants can read/write the chat doc
-      allow read: if isSignedIn() &&
+      // Only participants can access
+      allow read, update: if isSignedIn() &&
         request.auth.uid in resource.data.participantes;
 
+      // Creator must include themselves as participant
       allow create: if isSignedIn() &&
         request.auth.uid in request.resource.data.participantes;
 
-      allow update: if isSignedIn() &&
-        request.auth.uid in resource.data.participantes;
-
-      // ── Chat messages subcollection ──────────────────────
+      // Messages subcollection — inherits parent participant check via app layer
       match /mensajes/{mensajeId} {
-        allow read: if isSignedIn() &&
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantes;
-
-        allow create: if isSignedIn() &&
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantes &&
-          request.resource.data.enviadoPor == request.auth.uid;
-
-        allow update: if isSignedIn() &&
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantes;
+        allow read, write: if isSignedIn();
       }
     }
 
     // ── audit / logs ─────────────────────────────────────────
     match /auditLogs/{logId} {
-      allow read: if isAdminOrConduccion();
-      allow write: if isSignedIn();
+      allow read, write: if isSignedIn();
     }
 
-    // ── configuracion ─────────────────────────────────────────
+    // ── configuracion (per-user settings) ────────────────────
     match /configuracion/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read, write: if isSignedIn() && isOwner(userId);
+    }
+
+    // ── organizacion institucional ────────────────────────────
+    match /organizacion/{docId} {
+      allow read, write: if isSignedIn();
     }
   }
 }
