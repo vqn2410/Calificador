@@ -44,7 +44,7 @@ export default function StudentProfile() {
     if (loading) return <div className="container" style={{ paddingTop: '100px' }}><h2>Cargando trayectoria...</h2></div>;
 
     const currentYear = new Date().getFullYear();
-    const areas = [
+    const baseAreas = [
         'Prácticas del Lenguaje',
         'Matemática',
         'Ciencias Sociales',
@@ -53,6 +53,31 @@ export default function StudentProfile() {
         'Educación Física',
         'Inglés'
     ];
+
+    const evaluatedAreas = new Set();
+    student?.informes?.forEach(inf => {
+        if (inf.materias) {
+            Object.keys(inf.materias).forEach(m => evaluatedAreas.add(m));
+        }
+    });
+
+    let activeAreas = baseAreas.filter(a => evaluatedAreas.has(a));
+    evaluatedAreas.forEach(a => {
+        if (!activeAreas.includes(a)) activeAreas.push(a);
+    });
+    if (activeAreas.length === 0) activeAreas = baseAreas;
+
+    const formatGrade = (grade) => {
+        if (!grade) return '';
+        const map = {
+            'Sobresaliente': 'S',
+            'Muy bueno': 'MB',
+            'Bueno': 'B',
+            'Regular': 'R',
+            'Desaprobado': 'D'
+        };
+        return map[grade] || grade;
+    };
 
     const getGrade = (trimName, area) => {
         const inf = student?.informes?.find(i => i.trimestre === trimName);
@@ -206,7 +231,7 @@ export default function StudentProfile() {
                         <div className="header-info uppercase">
                             <span>CICLO LECTIVO 20{currentYear.toString().slice(-2)}</span>
                             <span>AÑO {student?.curso?.charAt(0)}°</span>
-                            <span>SECCIÓN "{student?.curso?.charAt(1)}"</span>
+                            <span>SECCIÓN {student?.curso?.charAt(1)}</span>
                         </div>
 
                         <table className="bol-table">
@@ -221,12 +246,12 @@ export default function StudentProfile() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {areas.map(area => (
+                                {activeAreas.map(area => (
                                     <tr key={area}>
                                         <td className="area-title">{area}</td>
-                                        <td style={{ color: getStatusColor(getGrade('1er Trimestre', area)) }}>{getGrade('1er Trimestre', area)}</td>
-                                        <td style={{ color: getStatusColor(getGrade('2do Trimestre', area)) }}>{getGrade('2do Trimestre', area)}</td>
-                                        <td style={{ color: getStatusColor(getGrade('3er Trimestre', area)) }}>{getGrade('3er Trimestre', area)}</td>
+                                        <td style={{ color: getStatusColor(getGrade('1er Trimestre', area)) }}>{formatGrade(getGrade('1er Trimestre', area))}</td>
+                                        <td style={{ color: getStatusColor(getGrade('2do Trimestre', area)) }}>{formatGrade(getGrade('2do Trimestre', area))}</td>
+                                        <td style={{ color: getStatusColor(getGrade('3er Trimestre', area)) }}>{formatGrade(getGrade('3er Trimestre', area))}</td>
                                         <td></td>
                                         <td></td>
                                     </tr>
@@ -279,6 +304,23 @@ export default function StudentProfile() {
                     </div>
                 </div>
 
+                {/* CUADRO DE REFERENCIAS */}
+                <div style={{ gridColumn: '1 / -1', marginTop: '1rem', borderTop: '2px solid #e5e7eb', paddingTop: '1rem' }}>
+                    <div style={{ fontSize: '0.8rem', color: '#4b5563', fontWeight: 'bold', marginBottom: '0.5rem', textAlign: 'center' }}>
+                        REFERENCIAS DE CALIFICACIÓN
+                    </div>
+                    <table className="bol-table" style={{ width: '100%', maxWidth: '600px', margin: '0 auto', fontSize: '0.7rem' }}>
+                        <tbody>
+                            <tr>
+                                <td style={{ fontWeight: 'bold' }}>S</td><td style={{ textAlign: 'left', backgroundColor: 'white' }}>Sobresaliente</td>
+                                <td style={{ fontWeight: 'bold' }}>MB</td><td style={{ textAlign: 'left', backgroundColor: 'white' }}>Muy bueno</td>
+                                <td style={{ fontWeight: 'bold' }}>B</td><td style={{ textAlign: 'left', backgroundColor: 'white' }}>Bueno</td>
+                                <td style={{ fontWeight: 'bold' }}>R</td><td style={{ textAlign: 'left', backgroundColor: 'white' }}>Regular</td>
+                                <td style={{ fontWeight: 'bold' }}>D</td><td style={{ textAlign: 'left', backgroundColor: 'white' }}>Desaprobado</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );
