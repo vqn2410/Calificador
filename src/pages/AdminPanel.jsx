@@ -4,7 +4,7 @@ import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth'
 import { collection, getDocs, addDoc, updateDoc, doc, setDoc, deleteDoc, query, where, getDoc } from 'firebase/firestore';
 import { db, firebaseConfig } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
-import { ShieldCheck, UserPlus, Users, GraduationCap, ArrowRightCircle, RefreshCcw, CheckSquare, Trash2, Edit, FileText, UploadCloud, Activity, Settings, Lock, Unlock, PenTool } from 'lucide-react';
+import { ShieldCheck, UserPlus, Users, User, GraduationCap, ArrowRightCircle, RefreshCcw, CheckSquare, Trash2, Edit, FileText, UploadCloud, Activity, Settings, Lock, Unlock, PenTool } from 'lucide-react';
 import InformesConduccion from './InformesConduccion';
 import { VALID_COURSES } from '../config/constants';
 
@@ -48,7 +48,7 @@ export default function AdminPanel() {
     const [msg, setMsg] = useState({ type: '', text: '' });
 
     useEffect(() => {
-        if (activeTab === 'docentes' && docentes.length === 0) fetchDocentes();
+        if ((activeTab === 'docentes' || activeTab === 'familias') && docentes.length === 0) fetchDocentes();
         if (activeTab === 'estudiantes' && estudiantes.length === 0) fetchEstudiantes();
         if (activeTab === 'actividad' && logs.length === 0) fetchLogs();
         if (activeTab === 'config') fetchAppSettings();
@@ -301,6 +301,77 @@ export default function AdminPanel() {
     const cancelEditDocente = () => {
         setEditingDocente(null);
         setNewDocente({ nombre: '', apellido: '', dni: '', email: '', password: '', roles: ['docente'], cursos: '', materiaEspecial: '', hijosDnis: '' });
+    };
+
+    const downloadTeacherCSVModel = () => {
+        const csvContent = "data:text/csv;charset=utf-8,NOMBRE,APELLIDO,DNI,EMAIL,PASSWORD,ROLES,CURSOS,MATERIA_ESPECIAL,HIJOS_DNIS\nJuan,Docente,12345678,juan@escuela.com,pass123,docente,1A-TM;2B-TT,, \nMaria,Especialista,87654321,maria@escuela.com,pass876,docente_area,1A-TM;1B-TM;1C-TM,Inglés, \nCarlos,Familiar,11223344,carlos@correo.com,pass112,familia,, ,44556677;88990011";
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "modelo_importacion_docentes.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handleTeacherCSVUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setMsg({ type: 'info', text: 'Procesando archivo CSV de Docentes... Por favor espere.' });
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target.result;
+                const rows = text.split('\n').filter(r => r.trim());
+                let count = 0;
+
+                for (let i = 1; i < rows.length; i++) {
+                    const cols = rows[i].split(',').map(c => c.trim().replace(/"/g, ''));
+                    if (cols.length >= 6) {
+                        const [nombre, apellido, dni, email, password, rolesRaw, cursosRaw, materiaEspecial, hijosRaw] = cols;
+                        if (!email || !password) continue;
+
+                        const roles = rolesRaw.split(';').map(r => r.trim().toLowerCase()).filter(Boolean);
+                        const cursosAsignados = cursosRaw ? cursosRaw.split(';').map(c => c.trim()).filter(Boolean) : [];
+                        const hijosDnis = hijosRaw ? hijosRaw.split(';').map(h => h.trim()).filter(Boolean) : [];
+
+                        try {
+                            const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+                            await signOut(secondaryAuth);
+
+                            const docenteData = {
+                                nombre,
+                                apellido,
+                                displayName: `${nombre} ${apellido}`,
+                                dni: dni || '',
+                                email: email,
+                                roles: roles.length > 0 ? roles : ['docente'],
+                                cursosAsignados,
+                                materiaEspecial: materiaEspecial || null,
+                                hijosDnis,
+                                createdAt: new Date(),
+                                mustChangePassword: true
+                            };
+
+                            await setDoc(doc(db, 'docentes', userCredential.user.uid), docenteData);
+                            count++;
+                        } catch (err) {
+                            console.error(`Error al crear docente ${email}:`, err);
+                        }
+                    }
+                }
+
+                await logActivity('Importación CSV Docentes', `Se crearon ${count} cuentas de docentes/usuarios por lote.`);
+                showMessage('success', `Importación finalizada: ${count} cuentas creadas correctamente.`);
+                fetchDocentes();
+            } catch (err) {
+                showMessage('error', 'Error al procesar el archivo CSV de docentes.');
+                console.error(err);
+            }
+            e.target.value = null;
+        };
+        reader.readAsText(file);
     };
 
     const handleCreateEstudiante = async (e) => {
@@ -620,7 +691,13 @@ export default function AdminPanel() {
                     className={`btn ${activeTab === 'docentes' ? 'btn-primary' : 'btn-outline'}`}
                     onClick={() => setActiveTab('docentes')}
                 >
-                    <Users size={18} /> Base Plantilla Docentes
+                    <Users size={18} /> Base Plantilla Docentes / Adm
+                </button>
+                <button
+                    className={`btn ${activeTab === 'familias' ? 'btn-primary' : 'btn-outline'}`}
+                    onClick={() => setActiveTab('familias')}
+                >
+                    <User size={18} /> Gestión de Familias
                 </button>
                 <button
                     className={`btn ${activeTab === 'estudiantes' ? 'btn-primary' : 'btn-outline'}`}
@@ -744,6 +821,19 @@ export default function AdminPanel() {
                                 <button type="button" onClick={cancelEditDocente} className="btn w-full mt-2" style={{ backgroundColor: 'transparent', color: 'var(--color-text-muted)' }}>Cancelar Edición</button>
                             )}
                         </form>
+
+                        <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--color-border)' }}>
+                            <h4 style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Importación Masiva de Docentes</h4>
+                            <div className="flex flex-col gap-3">
+                                <button onClick={downloadTeacherCSVModel} className="btn btn-outline w-full flex items-center justify-center gap-2">
+                                    <FileText size={18} /> Descargar Modelo CSV
+                                </button>
+                                <label className="btn btn-secondary w-full flex items-center justify-center gap-2 cursor-pointer">
+                                    <UploadCloud size={18} /> Subir CSV de Docentes
+                                    <input type="file" accept=".csv" onChange={handleTeacherCSVUpload} style={{ display: 'none' }} />
+                                </label>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="card" style={{ overflowX: 'auto' }}>
@@ -762,7 +852,7 @@ export default function AdminPanel() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {docentes.map(d => (
+                                    {docentes.filter(d => (d.roles || []).some(r => ['docente', 'docente_area', 'administrador', 'equipo_conduccion'].includes(r))).map(d => (
                                         <tr key={d.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                             <td style={{ padding: '0.5rem' }}>
                                                 <div style={{ fontWeight: 600 }}>{d.displayName}</div>
@@ -794,7 +884,94 @@ export default function AdminPanel() {
                                             </td>
                                         </tr>
                                     ))}
-                                    {docentes.length === 0 && <tr><td colSpan="4" style={{ padding: '1rem', textAlign: 'center' }}>No hay usuarios registrados.</td></tr>}
+                                    {docentes.filter(d => (d.roles || []).some(r => ['docente', 'docente_area', 'administrador', 'equipo_conduccion'].includes(r))).length === 0 && <tr><td colSpan="4" style={{ padding: '1rem', textAlign: 'center' }}>No hay usuarios registrados.</td></tr>}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'familias' && (
+                <div className="grid" style={{ gridTemplateColumns: '1fr 2fr', gap: '2rem' }}>
+                    <div className="card">
+                        <h3 className="mb-4 flex items-center gap-2">
+                            <User size={20} />
+                            {editingDocente ? 'Modificar Usuario' : 'Alta Directa de Familiar'}
+                        </h3>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>Nota: Los familiares se crean habitualmente al matricular un alumno, pero aquí puede gestionarlos manualmente.</p>
+                        <form onSubmit={handleSubmitDocente}>
+                            <div className="input-group">
+                                <input className="input-field" placeholder="Nombre" required value={newDocente.nombre} onChange={e => setNewDocente({ ...newDocente, nombre: e.target.value })} />
+                            </div>
+                            <div className="input-group">
+                                <input className="input-field" placeholder="Apellido" required value={newDocente.apellido} onChange={e => setNewDocente({ ...newDocente, apellido: e.target.value })} />
+                            </div>
+                            <div className="input-group">
+                                <input className="input-field" placeholder="DNI" required value={newDocente.dni} onChange={e => setNewDocente({ ...newDocente, dni: e.target.value })} />
+                            </div>
+
+                            <div className="input-group">
+                                <label className="input-label" style={{ fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>Perfil</label>
+                                <div className="badge badge-success">SÓLO ACCESO FAMILIA</div>
+                                <input type="hidden" value="familia" />
+                            </div>
+
+                            <div className="input-group">
+                                <input className="input-field" placeholder="DNI de los Hijos (separados por coma)" required value={newDocente.hijosDnis} onChange={e => setNewDocente({ ...newDocente, hijosDnis: e.target.value, roles: ['familia'] })} />
+                            </div>
+
+                            <button type="submit" className="btn btn-primary w-full mt-4">
+                                {editingDocente ? 'Actualizar Familiar' : 'Registrar Familiar'}
+                            </button>
+                            {editingDocente && (
+                                <button type="button" onClick={cancelEditDocente} className="btn w-full mt-2" style={{ backgroundColor: 'transparent', color: 'var(--color-text-muted)' }}>Cancelar Edición</button>
+                            )}
+                        </form>
+                    </div>
+
+                    <div className="card" style={{ overflowX: 'auto' }}>
+                        <h3 className="mb-4 flex items-center justify-between">
+                            Nómina de Familiares Registrados
+                            <button onClick={fetchDocentes} className="btn"><RefreshCcw size={16} /></button>
+                        </h3>
+                        {loadingDocentes ? <p>Cargando datos...</p> : (
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
+                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Nombre y Apellido</th>
+                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>DNI</th>
+                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Email / Hijos vinculados</th>
+                                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Admin</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {docentes.filter(d => (d.roles || []).length === 1 && d.roles.includes('familia')).map(d => (
+                                        <tr key={d.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                            <td style={{ padding: '0.5rem' }}>
+                                                <div style={{ fontWeight: 600 }}>{d.displayName}</div>
+                                                <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>FAMILIA</span>
+                                            </td>
+                                            <td style={{ padding: '0.5rem' }}>{d.dni}</td>
+                                            <td style={{ padding: '0.5rem' }}>
+                                                <div>{d.email}</div>
+                                                <div style={{ color: 'var(--color-primary)', fontSize: '0.75rem' }}>Hijos: {d.hijosDnis?.join(', ')}</div>
+                                            </td>
+                                            <td style={{ padding: '0.5rem', textAlign: 'right' }}>
+                                                <button onClick={() => handleEditDocente(d)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', marginRight: '0.5rem' }}>
+                                                    <Edit size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={(evt) => { evt.stopPropagation(); handleDeleteDocente(d.id, d.displayName); }}
+                                                    className="btn btn-outline"
+                                                    style={{ padding: '0.25rem 0.5rem', borderColor: '#fca5a5', color: '#ef4444' }}
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {docentes.filter(d => (d.roles || []).length === 1 && d.roles.includes('familia')).length === 0 && <tr><td colSpan="4" style={{ padding: '1rem', textAlign: 'center' }}>No existen familiares registrados exclusivamente bajo este rol.</td></tr>}
                                 </tbody>
                             </table>
                         )}
