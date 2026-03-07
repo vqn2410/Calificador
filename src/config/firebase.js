@@ -36,9 +36,8 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
     }
 }
 
-// VAPID key from Firebase Console → Project Settings → Cloud Messaging
-// IMPORTANT: Replace this with your actual VAPID key from Firebase Console
-export const VAPID_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDkBWsbqp7T_YfRkflCN_-Y74OTuHxqjG5WGvs7TPUEY';
+// VAPID key — Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
+export const VAPID_KEY = 'BEZ2Z9ESVpqws4EkC6uskiqZFSdS5dg63YKp7Z7PG1ATB55aSjQ9iNw8j-uW33UC187lr4dwycI9IYiV55__ePk';
 
 export async function requestFCMToken() {
     if (!messaging) return null;
