@@ -308,6 +308,11 @@ p {
 
   .app-main {
     margin-left: 0;
+    padding-top: 5rem;
+  }
+
+  .mobile-menu-btn {
+    display: block !important;
   }
 }
 

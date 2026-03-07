@@ -16,7 +16,8 @@ export default function Login() {
         try {
             setError('');
             setLoading(true);
-            await login(email, password);
+            const loginEmail = email.includes('@') ? email : `${email}@familia.com`;
+            await login(loginEmail, password);
             navigate('/');
         } catch (err) {
             setError('Error al iniciar sesión. Verifique sus credenciales.');
@@ -33,19 +34,19 @@ export default function Login() {
                         <GraduationCap size={32} color="var(--color-primary)" />
                     </div>
                     <h2 style={{ color: 'var(--color-primary)', fontSize: '1.75rem', marginBottom: '0.5rem' }}>Calificador Digital</h2>
-                    <p style={{ color: 'var(--color-text-muted)' }}>Portal Docente - Provincia de Buenos Aires</p>
+                    <p style={{ color: 'var(--color-text-muted)' }}>Portal Docente y Acceso Familiar</p>
                 </div>
 
                 {error && <div className="badge badge-error" style={{ display: 'block', textAlign: 'center', marginBottom: '1.5rem', padding: '0.75rem' }}>{error}</div>}
 
                 <form onSubmit={handleSubmit}>
                     <div className="input-group">
-                        <label className="input-label" htmlFor="email">Correo Institucional (ABC)</label>
+                        <label className="input-label" htmlFor="email">Usuario (Email) o DNI (Familias)</label>
                         <input
                             id="email"
-                            type="email"
+                            type="text"
                             className="input-field"
-                            placeholder="docente@abc.gob.ar"
+                            placeholder="docente@abc.gob.ar o DNI"
                             required
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}

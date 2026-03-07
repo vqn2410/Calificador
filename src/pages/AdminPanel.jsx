@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { collection, getDocs, addDoc, updateDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, doc, setDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { db, firebaseConfig } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import { ShieldCheck, UserPlus, Users, GraduationCap, ArrowRightCircle, RefreshCcw, CheckSquare, Trash2, Edit, FileText, UploadCloud, Activity } from 'lucide-react';
@@ -13,6 +13,10 @@ export default function AdminPanel() {
     const { currentUser } = useAuth();
     const [activeTab, setActiveTab] = useState('docentes');
 
+    // All possible courses
+    const ALL_COURSES = [];
+    [1, 2, 3, 4, 5, 6].forEach(g => ['A', 'B', 'C', 'D'].forEach(s => { ALL_COURSES.push(`${g}${s}-TM`); ALL_COURSES.push(`${g}${s}-TT`); }));
+
     // States Docentes
     const [docentes, setDocentes] = useState([]);
     const [loadingDocentes, setLoadingDocentes] = useState(false);
@@ -22,7 +26,10 @@ export default function AdminPanel() {
     // States Estudiantes
     const [estudiantes, setEstudiantes] = useState([]);
     const [loadingEstudiantes, setLoadingEstudiantes] = useState(false);
-    const [newEstudiante, setNewEstudiante] = useState({ nombre: '', apellido: '', dni: '', grado: '', seccion: '', turno: 'Mañana' });
+    const [editingEstudiante, setEditingEstudiante] = useState(null);
+    const [newEstudiante, setNewEstudiante] = useState({ nombre: '', apellido: '', dni: '', grado: '', seccion: '', turno: 'Mañana', famNombre: '', famApellido: '', famDni: '', famTelefono: '', famCorreo: '', famParentesco: 'Madre/Padre' });
+    const [searchStudentTerm, setSearchStudentTerm] = useState('');
+    const [searchStudentCourse, setSearchStudentCourse] = useState('');
 
     // States Migración Masiva
     const [migrationData, setMigrationData] = useState({ anioNuevo: new Date().getFullYear() + 1, gradoNuevo: '', seccionNueva: '', turnoNuevo: 'Mañana' });
@@ -138,16 +145,26 @@ export default function AdminPanel() {
         if (editingDocente) {
             setMsg({ type: 'info', text: 'Actualizando datos del docente...' });
             try {
+                const isOnlyFamilia = newDocente.roles.includes('familia') && newDocente.roles.length === 1;
+                const mainDniHijo = newDocente.hijosDnis ? newDocente.hijosDnis.split(',')[0].trim() : '';
+
+                let submitEmail = newDocente.email;
+                if (isOnlyFamilia && mainDniHijo) {
+                    submitEmail = `${mainDniHijo}@familia.com`;
+                }
+
                 const docenteData = {
                     nombre: newDocente.nombre,
                     apellido: newDocente.apellido,
                     displayName: `${newDocente.nombre} ${newDocente.apellido}`,
                     dni: newDocente.dni,
                     roles: newDocente.roles,
-                    cursosAsignados: newDocente.cursos.split(',').map(c => c.trim()).filter(Boolean),
+                    cursosAsignados: isOnlyFamilia ? [] : newDocente.cursos.split(',').map(c => c.trim()).filter(Boolean),
                     materiaEspecial: newDocente.roles.includes('docente_area') ? newDocente.materiaEspecial : null,
                     hijosDnis: newDocente.roles.includes('familia') ? newDocente.hijosDnis.split(',').map(h => h.trim()).filter(Boolean) : null
                 };
+
+                if (isOnlyFamilia) docenteData.email = submitEmail;
 
                 await updateDoc(doc(db, 'docentes', editingDocente), docenteData);
                 await logActivity('Actualización de Docente', `Se modificó el perfil de ${docenteData.displayName}`);
@@ -161,7 +178,22 @@ export default function AdminPanel() {
         } else {
             setMsg({ type: 'info', text: 'Creando docente y registro...' });
             try {
-                const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newDocente.email, newDocente.password);
+                const isOnlyFamilia = newDocente.roles.includes('familia') && newDocente.roles.length === 1;
+                const mainDniHijo = newDocente.hijosDnis ? newDocente.hijosDnis.split(',')[0].trim() : '';
+
+                let submitEmail = newDocente.email;
+                let submitPassword = newDocente.password;
+
+                if (isOnlyFamilia && mainDniHijo) {
+                    submitEmail = `${mainDniHijo}@familia.com`;
+                    submitPassword = mainDniHijo;
+                }
+
+                if (!submitEmail || !submitPassword) {
+                    return showMessage('error', 'Faltan credenciales válidas o DNI de hijo para completar la cuenta.');
+                }
+
+                const userCredential = await createUserWithEmailAndPassword(secondaryAuth, submitEmail, submitPassword);
                 await signOut(secondaryAuth);
 
                 const docenteData = {
@@ -169,9 +201,9 @@ export default function AdminPanel() {
                     apellido: newDocente.apellido,
                     displayName: `${newDocente.nombre} ${newDocente.apellido}`,
                     dni: newDocente.dni,
-                    email: newDocente.email,
+                    email: submitEmail,
                     roles: newDocente.roles,
-                    cursosAsignados: newDocente.cursos.split(',').map(c => c.trim()).filter(Boolean),
+                    cursosAsignados: isOnlyFamilia ? [] : newDocente.cursos.split(',').map(c => c.trim()).filter(Boolean),
                     materiaEspecial: newDocente.roles.includes('docente_area') ? newDocente.materiaEspecial : null,
                     hijosDnis: newDocente.roles.includes('familia') ? newDocente.hijosDnis.split(',').map(h => h.trim()).filter(Boolean) : null,
                     createdAt: new Date(),
@@ -197,8 +229,50 @@ export default function AdminPanel() {
 
     const handleCreateEstudiante = async (e) => {
         e.preventDefault();
-        setMsg({ type: 'info', text: 'Registrando estudiante...' });
+        setMsg({ type: 'info', text: editingEstudiante ? 'Actualizando datos del estudiante...' : 'Registrando estudiante y responsable...' });
         try {
+            if (!newEstudiante.famDni || !newEstudiante.famCorreo || !newEstudiante.famApellido || !newEstudiante.famNombre || !newEstudiante.famTelefono) {
+                return showMessage('error', 'Faltan datos obligatorios del familiar responsable.');
+            }
+
+            const q = query(collection(db, 'docentes'), where('dni', '==', newEstudiante.famDni));
+            const snap = await getDocs(q);
+
+            if (!snap.empty) {
+                const familiar = snap.docs[0];
+                const famData = familiar.data();
+                const updatedRoles = [...new Set([...(famData.roles || []), 'familia'])];
+                const updatedHijos = [...new Set([...(famData.hijosDnis || []), newEstudiante.dni])];
+
+                await updateDoc(doc(db, 'docentes', familiar.id), {
+                    roles: updatedRoles,
+                    hijosDnis: updatedHijos,
+                    telefono: newEstudiante.famTelefono || famData.telefono || ''
+                });
+            } else {
+                const submitEmail = newEstudiante.famCorreo.includes('@') ? newEstudiante.famCorreo : `${newEstudiante.famCorreo}@familia.com`;
+                const submitPassword = newEstudiante.famDni;
+
+                const userCredential = await createUserWithEmailAndPassword(secondaryAuth, submitEmail, submitPassword);
+                await signOut(secondaryAuth);
+
+                const familiarData = {
+                    nombre: newEstudiante.famNombre,
+                    apellido: newEstudiante.famApellido,
+                    displayName: `${newEstudiante.famNombre} ${newEstudiante.famApellido}`,
+                    dni: newEstudiante.famDni,
+                    email: submitEmail,
+                    telefono: newEstudiante.famTelefono,
+                    roles: ['familia'],
+                    hijosDnis: [newEstudiante.dni],
+                    createdAt: new Date(),
+                    mustChangePassword: true
+                };
+                // Adding parentesco to famData directly helps keep it localized
+                familiarData[`parentesco_${newEstudiante.dni}`] = newEstudiante.famParentesco;
+                await setDoc(doc(db, 'docentes', userCredential.user.uid), familiarData);
+            }
+
             const nuevoTurnoStr = newEstudiante.turno === 'Mañana' ? 'TM' : 'TT';
             const nuevoCursoId = `${newEstudiante.grado}${newEstudiante.seccion}-${nuevoTurnoStr}`;
 
@@ -207,20 +281,59 @@ export default function AdminPanel() {
                 dni: newEstudiante.dni,
                 cursoId: nuevoCursoId,
                 turno: newEstudiante.turno,
-                asistencia: '0%',
-                informes: [],
-                historicoCursos: []
+                famFiliacion: { dni: newEstudiante.famDni, parentesco: newEstudiante.famParentesco }
             };
 
-            await addDoc(collection(db, 'estudiantes'), estudianteData);
-            await logActivity('Matriculó Estudiante', `Se inscribió al alumno ${estudianteData.nombre} en ${nuevoCursoId}`);
+            if (editingEstudiante) {
+                await updateDoc(doc(db, 'estudiantes', editingEstudiante), estudianteData);
+                await logActivity('Actualizó Estudiante', `Se actualizó la ficha técnica del alumno ${estudianteData.nombre}.`);
+                showMessage('success', 'Ficha del estudiante actualizada correctamente.');
+            } else {
+                estudianteData.asistencia = '0%';
+                estudianteData.informes = [];
+                estudianteData.historicoCursos = [];
+                await addDoc(collection(db, 'estudiantes'), estudianteData);
+                await logActivity('Matriculó Estudiante', `Se inscribió al alumno ${estudianteData.nombre} (Fam: ${newEstudiante.famApellido})`);
+                showMessage('success', 'Estudiante y Familiar registrados correctamente.');
+            }
 
-            showMessage('success', 'Estudiante registrado correctamente.');
-            setNewEstudiante({ nombre: '', apellido: '', dni: '', grado: '', seccion: '', turno: 'Mañana' });
+            cancelEditEstudiante();
             fetchEstudiantes();
         } catch (err) {
-            showMessage('error', 'Error al registrar estudiante: ' + err.message);
+            console.error(err);
+            showMessage('error', 'Error en el guardado de estudiante: ' + err.message);
         }
+    };
+
+    const handleEditEstudiante = (est) => {
+        setEditingEstudiante(est.id);
+
+        let nom = est.nombre.split(',')[1]?.trim() || '';
+        let ape = est.nombre.split(',')[0]?.trim() || '';
+        let gr = est.cursoId ? est.cursoId.charAt(0) : '';
+        let sec = est.cursoId ? est.cursoId.charAt(1) : '';
+
+        setNewEstudiante({
+            nombre: nom,
+            apellido: ape,
+            dni: est.dni || '',
+            grado: gr,
+            seccion: sec,
+            turno: est.turno || 'Mañana',
+            famNombre: '',
+            famApellido: '',
+            famDni: est.famFiliacion?.dni || '',
+            famTelefono: '',
+            famCorreo: '',
+            famParentesco: est.famFiliacion?.parentesco || 'Madre/Padre'
+        });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        showMessage('info', 'Editando estudiante. Solo para el titular modifique datos. Rellenar datos del parentesco.');
+    };
+
+    const cancelEditEstudiante = () => {
+        setEditingEstudiante(null);
+        setNewEstudiante({ nombre: '', apellido: '', dni: '', grado: '', seccion: '', turno: 'Mañana', famNombre: '', famApellido: '', famDni: '', famTelefono: '', famCorreo: '', famParentesco: 'Madre/Padre' });
     };
 
     const handleDeleteEstudiante = async (id, nombre) => {
@@ -238,7 +351,7 @@ export default function AdminPanel() {
 
     // CSV LOGIC
     const downloadCSVModel = () => {
-        const csvContent = "data:text/csv;charset=utf-8,NOMBRE,APELLIDO,DNI,GRADO,SECCION,TURNO\nJuan,Perez,12345678,1,A,Mañana\nMaria,Gomez,87654321,3,B,Tarde";
+        const csvContent = "data:text/csv;charset=utf-8,NOMBRE,APELLIDO,DNI,GRADO,SECCION,TURNO,FAM_NOMBRE,FAM_APELLIDO,FAM_DNI,FAM_TEL,FAM_CORREO\nJuan,Perez,12345678,1,A,Mañana,Carlos,Perez,11222333,1155556666,carlos@correo.com\nMaria,Gomez,87654321,3,B,Tarde,Ana,Gomez,33444555,1144445555,ana@correo.com";
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -263,8 +376,28 @@ export default function AdminPanel() {
                 for (let i = 1; i < rows.length; i++) {
                     const cols = rows[i].split(',').map(c => c.trim().replace(/"/g, ''));
                     if (cols.length >= 6) {
-                        const [nombre, apellido, dni, grado, seccion, turno] = cols;
+                        const [nombre, apellido, dni, grado, seccion, turno, famN, famA, famD, famT, famC] = cols;
                         if (!dni) continue;
+
+                        if (famD && famC && famA && famN) {
+                            const q = query(collection(db, 'docentes'), where('dni', '==', famD));
+                            const snap = await getDocs(q);
+                            if (!snap.empty) {
+                                const familiar = snap.docs[0];
+                                const famData = familiar.data();
+                                const updatedRoles = [...new Set([...(famData.roles || []), 'familia'])];
+                                const updatedHijos = [...new Set([...(famData.hijosDnis || []), dni])];
+                                await updateDoc(doc(db, 'docentes', familiar.id), { roles: updatedRoles, hijosDnis: updatedHijos });
+                            } else {
+                                const submitEmail = famC.includes('@') ? famC : `${famC}@familia.com`;
+                                const userCredential = await createUserWithEmailAndPassword(secondaryAuth, submitEmail, famD);
+                                await signOut(secondaryAuth);
+                                const familiarData = {
+                                    nombre: famN, apellido: famA, displayName: `${famN} ${famA}`, dni: famD, email: submitEmail, telefono: famT || '', roles: ['familia'], hijosDnis: [dni], createdAt: new Date(), mustChangePassword: true
+                                };
+                                await setDoc(doc(db, 'docentes', userCredential.user.uid), familiarData);
+                            }
+                        }
 
                         const nuevoTurnoStr = turno.toLowerCase().includes('ma') ? 'TM' : 'TT';
                         const nuevoCursoId = `${grado}${seccion.toUpperCase()}-${nuevoTurnoStr}`;
@@ -297,11 +430,17 @@ export default function AdminPanel() {
         reader.readAsText(file);
     };
 
+    const filteredEstudiantes = estudiantes.filter(e => {
+        const matchName = e.nombre.toLowerCase().includes(searchStudentTerm.toLowerCase()) || e.dni.includes(searchStudentTerm);
+        const matchCourse = searchStudentCourse === '' || e.cursoId === searchStudentCourse;
+        return matchName && matchCourse;
+    });
+
     const toggleSelectAll = () => {
-        if (selectedEstudiantes.length === estudiantes.length && estudiantes.length > 0) {
+        if (selectedEstudiantes.length === filteredEstudiantes.length && filteredEstudiantes.length > 0) {
             setSelectedEstudiantes([]);
         } else {
-            setSelectedEstudiantes(estudiantes.map(e => e.id));
+            setSelectedEstudiantes(filteredEstudiantes.map(e => e.id));
         }
     };
 
@@ -412,13 +551,17 @@ export default function AdminPanel() {
                             <div className="input-group">
                                 <input className="input-field" placeholder="DNI" required value={newDocente.dni} onChange={e => setNewDocente({ ...newDocente, dni: e.target.value })} />
                             </div>
-                            <div className="input-group">
-                                <input className="input-field" type="email" placeholder="Usuario (Email)" required disabled={editingDocente} value={newDocente.email} onChange={e => setNewDocente({ ...newDocente, email: e.target.value })} style={{ opacity: editingDocente ? 0.6 : 1 }} />
-                            </div>
-                            {!editingDocente && (
-                                <div className="input-group">
-                                    <input className="input-field" type="password" placeholder="Contraseña de Acceso" required minLength={6} value={newDocente.password} onChange={e => setNewDocente({ ...newDocente, password: e.target.value })} />
-                                </div>
+                            {!(newDocente.roles.includes('familia') && newDocente.roles.length === 1) && (
+                                <>
+                                    <div className="input-group">
+                                        <input className="input-field" type="email" placeholder="Usuario (Email)" required disabled={editingDocente} value={newDocente.email} onChange={e => setNewDocente({ ...newDocente, email: e.target.value })} style={{ opacity: editingDocente ? 0.6 : 1 }} />
+                                    </div>
+                                    {!editingDocente && (
+                                        <div className="input-group">
+                                            <input className="input-field" type="password" placeholder="Contraseña de Acceso" required minLength={6} value={newDocente.password} onChange={e => setNewDocente({ ...newDocente, password: e.target.value })} />
+                                        </div>
+                                    )}
+                                </>
                             )}
 
                             <div className="input-group" style={{ padding: '0.75rem', backgroundColor: 'var(--color-background)', borderRadius: 'var(--radius-md)' }}>
@@ -458,7 +601,22 @@ export default function AdminPanel() {
 
                             {(newDocente.roles.includes('docente') || newDocente.roles.includes('docente_area')) && (
                                 <div className="input-group">
-                                    <input className="input-field" placeholder="Cursos Asignados (ej: 1A-TM, 2B-TT)" value={newDocente.cursos} onChange={e => setNewDocente({ ...newDocente, cursos: e.target.value })} />
+                                    <label className="input-label" style={{ fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>Cursos Asignados (Múltiple Selección)</label>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>Mantenga pulsado Ctrl (o Cmd en Mac) para seleccionar más de uno.</p>
+                                    <select
+                                        className="input-field"
+                                        multiple
+                                        style={{ minHeight: '120px' }}
+                                        value={newDocente.cursos.split(', ').filter(Boolean)}
+                                        onChange={e => {
+                                            const selectedOptions = Array.from(e.target.selectedOptions, option => option.value);
+                                            setNewDocente({ ...newDocente, cursos: selectedOptions.join(', ') });
+                                        }}
+                                    >
+                                        {ALL_COURSES.map(c => (
+                                            <option key={c} value={c}>{c}</option>
+                                        ))}
+                                    </select>
                                 </div>
                             )}
 
@@ -542,7 +700,10 @@ export default function AdminPanel() {
                         </div>
 
                         <div className="card mb-4">
-                            <h3 className="mb-4 flex items-center gap-2"><UserPlus size={20} /> Matricular por Menor (1 u.)</h3>
+                            <h3 className="mb-4 flex items-center gap-2">
+                                <UserPlus size={20} />
+                                {editingEstudiante ? 'Editar Ficha Alumno' : 'Matricular por Menor (1 u.)'}
+                            </h3>
                             <form onSubmit={handleCreateEstudiante}>
                                 <div className="input-group">
                                     <input className="input-field" placeholder="Nombre" required value={newEstudiante.nombre} onChange={e => setNewEstudiante({ ...newEstudiante, nombre: e.target.value })} />
@@ -551,8 +712,38 @@ export default function AdminPanel() {
                                     <input className="input-field" placeholder="Apellido" required value={newEstudiante.apellido} onChange={e => setNewEstudiante({ ...newEstudiante, apellido: e.target.value })} />
                                 </div>
                                 <div className="input-group">
-                                    <input className="input-field" placeholder="DNI" required value={newEstudiante.dni} onChange={e => setNewEstudiante({ ...newEstudiante, dni: e.target.value })} />
+                                    <input className="input-field" placeholder="DNI Estudiante" required value={newEstudiante.dni} onChange={e => setNewEstudiante({ ...newEstudiante, dni: e.target.value })} />
                                 </div>
+                                <h4 style={{ margin: '1rem 0 0.5rem', fontSize: '0.9rem', color: 'var(--color-primary)' }}>Responsable Familiar (Obligatorio)</h4>
+                                <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                                    <div className="input-group">
+                                        <input className="input-field" placeholder="Nombre Familiar" required value={newEstudiante.famNombre} onChange={e => setNewEstudiante({ ...newEstudiante, famNombre: e.target.value })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <input className="input-field" placeholder="Apellido Familiar" required value={newEstudiante.famApellido} onChange={e => setNewEstudiante({ ...newEstudiante, famApellido: e.target.value })} />
+                                    </div>
+                                </div>
+                                <div className="grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+                                    <div className="input-group">
+                                        <input className="input-field" placeholder="DNI Fam (Clave Prov.)" required value={newEstudiante.famDni} onChange={e => setNewEstudiante({ ...newEstudiante, famDni: e.target.value })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <input className="input-field" placeholder="Teléfono" required={!editingEstudiante} value={newEstudiante.famTelefono} onChange={e => setNewEstudiante({ ...newEstudiante, famTelefono: e.target.value })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <select className="input-field" value={newEstudiante.famParentesco} onChange={e => setNewEstudiante({ ...newEstudiante, famParentesco: e.target.value })}>
+                                            <option value="Madre/Padre">Madre / Padre</option>
+                                            <option value="Tutor">Tutor / Tutor Legal</option>
+                                            <option value="Abuelo/a">Abuelo /a</option>
+                                            <option value="Hermano/a mayor">Hermano /a mayor</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="input-group">
+                                    <input className="input-field" type="email" placeholder="Correo Electrónico Familiar" required={!editingEstudiante} value={newEstudiante.famCorreo} onChange={e => setNewEstudiante({ ...newEstudiante, famCorreo: e.target.value })} />
+                                </div>
+
+                                <h4 style={{ margin: '1rem 0 0.5rem', fontSize: '0.9rem', color: 'var(--color-primary)' }}>Ciclo Lectivo</h4>
                                 <div className="grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
                                     <div className="input-group">
                                         <select className="input-field" required value={newEstudiante.grado} onChange={e => setNewEstudiante({ ...newEstudiante, grado: e.target.value })}>
@@ -574,7 +765,12 @@ export default function AdminPanel() {
                                         </select>
                                     </div>
                                 </div>
-                                <button type="submit" className="btn btn-secondary w-full mt-4">Guardar Alta Ficha Única</button>
+                                <button type="submit" className="btn btn-secondary w-full mt-4">
+                                    {editingEstudiante ? 'Actualizar Ficha Técnica' : 'Guardar Alta Ficha Única'}
+                                </button>
+                                {editingEstudiante && (
+                                    <button type="button" onClick={cancelEditEstudiante} className="btn w-full mt-2" style={{ backgroundColor: 'transparent', color: 'var(--color-text-muted)' }}>Cancelar Modificación</button>
+                                )}
                             </form>
                         </div>
 
@@ -626,7 +822,7 @@ export default function AdminPanel() {
                         <h3 className="mb-4 flex items-center justify-between">
                             <div>
                                 Base Central de Estudiantes
-                                <span className="badge badge-success ml-2">{estudiantes.length} Total</span>
+                                <span className="badge badge-success ml-2">{filteredEstudiantes.length} Filtro / {estudiantes.length} Total</span>
                             </div>
                             <div className="flex gap-2">
                                 <button onClick={toggleSelectAll} className="btn btn-outline" style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
@@ -636,12 +832,24 @@ export default function AdminPanel() {
                             </div>
                         </h3>
 
+                        <div className="grid mb-4" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <div className="input-group" style={{ marginBottom: 0 }}>
+                                <input className="input-field" placeholder="Buscar por Nombre, Apellido o DNI..." value={searchStudentTerm} onChange={e => setSearchStudentTerm(e.target.value)} />
+                            </div>
+                            <div className="input-group" style={{ marginBottom: 0 }}>
+                                <select className="input-field" value={searchStudentCourse} onChange={e => setSearchStudentCourse(e.target.value)}>
+                                    <option value="">Todos los Cursos</option>
+                                    {ALL_COURSES.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
                         {loadingEstudiantes ? <p>Cargando padrón...</p> : (
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                                 <thead>
                                     <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
                                         <th style={{ padding: '0.5rem', width: '40px', textAlign: 'center' }}>
-                                            <input type="checkbox" checked={selectedEstudiantes.length === estudiantes.length && estudiantes.length > 0} onChange={toggleSelectAll} />
+                                            <input type="checkbox" checked={selectedEstudiantes.length === filteredEstudiantes.length && filteredEstudiantes.length > 0} onChange={toggleSelectAll} />
                                         </th>
                                         <th style={{ padding: '0.5rem', textAlign: 'left' }}>Nombre Estudiante</th>
                                         <th style={{ padding: '0.5rem', textAlign: 'left' }}>DNI</th>
@@ -650,7 +858,7 @@ export default function AdminPanel() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {estudiantes.map(e => (
+                                    {filteredEstudiantes.map(e => (
                                         <tr key={e.id} style={{ borderBottom: '1px solid var(--color-border)', backgroundColor: selectedEstudiantes.includes(e.id) ? 'rgba(4,75,127,0.05)' : 'transparent' }}>
                                             <td style={{ padding: '0.5rem', textAlign: 'center' }}>
                                                 <input type="checkbox" checked={selectedEstudiantes.includes(e.id)} onChange={() => toggleStudentSelection(e.id)} />
@@ -661,13 +869,16 @@ export default function AdminPanel() {
                                                 <span className="badge badge-success">{e.cursoId} ({e.turno})</span>
                                             </td>
                                             <td style={{ padding: '0.5rem', textAlign: 'right' }}>
-                                                <button onClick={() => handleDeleteEstudiante(e.id, e.nombre)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', borderColor: '#fca5a5', color: '#ef4444' }} title="Dar de baja">
+                                                <button onClick={() => handleEditEstudiante(e)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', marginRight: '0.5rem' }} title="Editar">
+                                                    <Edit size={16} />
+                                                </button>
+                                                <button onClick={() => handleDeleteEstudiante(e.id, e.nombre)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', borderColor: '#fca5a5', color: '#ef4444' }} title="Eliminar">
                                                     <Trash2 size={16} />
                                                 </button>
                                             </td>
                                         </tr>
                                     ))}
-                                    {estudiantes.length === 0 && <tr><td colSpan="5" style={{ padding: '1rem', textAlign: 'center' }}>Base vacía.</td></tr>}
+                                    {filteredEstudiantes.length === 0 && <tr><td colSpan="5" style={{ padding: '1rem', textAlign: 'center' }}>No hay estudiantes que coincidan con la búsqueda.</td></tr>}
                                 </tbody>
                             </table>
                         )}

@@ -96,7 +96,12 @@ export default function StudentProfile() {
                         </div>
 
                         <div style={{ padding: '1rem', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-md)' }}>
-                            <h4 style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>Informe Apreciativo Docente</h4>
+                            <div className="flex justify-between items-center mb-2">
+                                <h4 style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', margin: 0 }}>Informe Apreciativo Docente</h4>
+                                {inf.inasistencias && (
+                                    <span className="badge badge-warning" style={{ fontSize: '0.75rem' }}>Inasistencias: {inf.inasistencias}</span>
+                                )}
+                            </div>
                             <p style={{ margin: 0, fontStyle: 'italic', color: 'var(--color-text-main)' }}>"{inf.general}"</p>
                         </div>
                     </div>

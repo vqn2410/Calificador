@@ -19,7 +19,7 @@ export default function Dashboard() {
 
     return (
         <div className="container">
-            <h1 className="mb-4">Portal Docente - PBA</h1>
+            <h1 className="mb-4">Dashboard</h1>
             <p className="mb-4" style={{ fontSize: '1.2rem' }}>¡Hola, {currentUser?.displayName || 'Docente'}! Este es el resumen de tu ciclo lectivo.</p>
 
             <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>

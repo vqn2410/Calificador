@@ -99,8 +99,8 @@ export default function ForcePasswordChange() {
                 ) : (
                     <form onSubmit={handleChangePassword}>
                         <div className="input-group" style={{ textAlign: 'left' }}>
-                            <label className="input-label">Usuario:</label>
-                            <input className="input-field" disabled value={currentUser.email} style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text-muted)' }} />
+                            <label className="input-label">Usuario / DNI:</label>
+                            <input className="input-field" disabled value={currentUser.email.replace('@familia.com', '')} style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text-muted)' }} />
                         </div>
 
                         <div className="input-group" style={{ textAlign: 'left', position: 'relative' }}>

@@ -15,6 +15,7 @@ export default function CourseDetails() {
     const [trimestre, setTrimestre] = useState('1er Trimestre');
     const [grades, setGrades] = useState({});
     const [generalComments, setGeneralComments] = useState({});
+    const [inasistencias, setInasistencias] = useState({});
 
     // courseId is like "1A-TM"
     const grado = parseInt(courseId.charAt(0));
@@ -43,20 +44,24 @@ export default function CourseDetails() {
             // Populate local grades state based on current selected trimester
             const currentGrades = {};
             const currentComments = {};
+            const currentInasistencias = {};
 
             stData.forEach(st => {
                 const informeActivo = st.informes?.find(inf => inf.trimestre === trimestre);
                 if (informeActivo) {
                     currentGrades[st.id] = informeActivo.materias || {};
                     currentComments[st.id] = informeActivo.general || '';
+                    currentInasistencias[st.id] = informeActivo.inasistencias || '';
                 } else {
                     currentGrades[st.id] = {};
                     currentComments[st.id] = '';
+                    currentInasistencias[st.id] = '';
                 }
             });
 
             setGrades(currentGrades);
             setGeneralComments(currentComments);
+            setInasistencias(currentInasistencias);
 
         } catch (error) {
             console.error("Error fetching students:", error);
@@ -86,6 +91,13 @@ export default function CourseDetails() {
         }));
     };
 
+    const handleInasistenciasChange = (studentId, value) => {
+        setInasistencias(prev => ({
+            ...prev,
+            [studentId]: value
+        }));
+    };
+
     const handleSaveGrades = async () => {
         setSaving(true);
         try {
@@ -99,7 +111,8 @@ export default function CourseDetails() {
                 updatedInformes.push({
                     trimestre: trimestre,
                     materias: grades[st.id] || {},
-                    general: generalComments[st.id] || ''
+                    general: generalComments[st.id] || '',
+                    inasistencias: inasistencias[st.id] || ''
                 });
 
                 await updateDoc(studentRef, {
@@ -180,7 +193,7 @@ export default function CourseDetails() {
                                     <th key={i} className="vertical-text" style={{ padding: '1rem', width: '40px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle' }}>{sub.toUpperCase()}</th>
                                 ))}
                                 <th className="print-only vertical-text" style={{ padding: '1rem', width: '40px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle' }}>DÍAS HÁBILES</th>
-                                <th className="print-only vertical-text" style={{ padding: '1rem', width: '40px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle' }}>INASISTENCIAS</th>
+                                <th className="vertical-text" style={{ padding: '1rem', width: '40px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle' }}>INASISTENCIAS</th>
                                 <th style={{ padding: '1rem', minWidth: '200px', textAlign: 'center', verticalAlign: 'middle' }}>OBSERVACIONES</th>
                             </tr>
                         </thead>
@@ -233,7 +246,16 @@ export default function CourseDetails() {
                                         </td>
                                     ))}
                                     <td className="print-only"></td>
-                                    <td className="print-only"></td>
+                                    <td style={{ padding: '1rem', textAlign: 'center' }}>
+                                        <input
+                                            className="input-field"
+                                            type="number" min="0" placeholder="-"
+                                            style={{ width: '60px', padding: '0.25rem 0.5rem', cursor: isStrictAreaTeacher ? 'not-allowed' : 'text' }}
+                                            value={inasistencias[st.id] || ''}
+                                            onChange={(e) => handleInasistenciasChange(st.id, e.target.value)}
+                                            disabled={isStrictAreaTeacher}
+                                        />
+                                    </td>
                                     <td style={{ padding: '1rem' }}>
                                         <div className="flex items-center gap-2">
                                             <input
