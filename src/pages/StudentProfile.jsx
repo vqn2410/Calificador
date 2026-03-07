@@ -120,7 +120,7 @@ export default function StudentProfile() {
                             <p style={{ margin: 0, color: 'rgba(255,255,255,0.8)' }}>DNI: {student?.dni}</p>
                             <div className="flex gap-2 mt-2">
                                 <span className="badge" style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }}>
-                                    <GraduationCap size={12} style={{ marginRight: '4px' }} /> {student?.curso}
+                                    <GraduationCap size={12} style={{ marginRight: '4px' }} /> {student?.cursoId || student?.curso}
                                 </span>
                             </div>
                         </div>
@@ -230,8 +230,8 @@ export default function StudentProfile() {
                     <div>
                         <div className="header-info uppercase">
                             <span>CICLO LECTIVO 20{currentYear.toString().slice(-2)}</span>
-                            <span>AÑO {student?.curso?.charAt(0)}°</span>
-                            <span>SECCIÓN {student?.curso?.charAt(1)}</span>
+                            <span>AÑO {(student?.cursoId || student?.curso || '')?.charAt(0)}°</span>
+                            <span>SECCIÓN {(student?.cursoId || student?.curso || '')?.charAt(1)}</span>
                         </div>
 
                         <table className="bol-table">
@@ -275,7 +275,7 @@ export default function StudentProfile() {
                     {/* RIGHT COLUMN: OBSERVATIONS */}
                     <div>
                         <div className="header-info uppercase justify-between items-center" style={{ marginBottom: '1.2rem' }}>
-                            <span>AÑO {student?.curso?.charAt(0)}° - 20{currentYear.toString().slice(-2)}</span>
+                            <span>AÑO {(student?.cursoId || student?.curso || '')?.charAt(0)}° - 20{currentYear.toString().slice(-2)}</span>
                             <span className="header-pill">OBSERVACIONES</span>
                         </div>
 
