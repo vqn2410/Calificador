@@ -5,7 +5,7 @@ import {
     signOut,
     sendPasswordResetEmail,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 
 const AuthContext = createContext();
@@ -85,6 +85,11 @@ export function AuthProvider({ children }) {
                     };
 
                     setCurrentUser(userObj);
+
+                    // Record last login timestamp
+                    try {
+                        await updateDoc(docRef, { lastLogin: new Date().toISOString() });
+                    } catch (_) { /* Non-critical, ignore */ }
 
                     // Initialize activeRole
                     const savedRole = localStorage.getItem('activeRole');

@@ -22,7 +22,7 @@ export default function AdminPanel() {
     const [docentes, setDocentes] = useState([]);
     const [loadingDocentes, setLoadingDocentes] = useState(false);
     const [editingDocente, setEditingDocente] = useState(null);
-    const [newDocente, setNewDocente] = useState({ nombre: '', apellido: '', dni: '', email: '', password: '', roles: ['docente'], cursos: '', materiaEspecial: '', hijosDnis: '' });
+    const [newDocente, setNewDocente] = useState({ nombre: '', apellido: '', dni: '', email: '', password: '', roles: ['docente'], cursos: '', materiaEspecial: '', hijosDnis: '', cargo: '' });
 
     // States Estudiantes
     const [estudiantes, setEstudiantes] = useState([]);
@@ -191,7 +191,8 @@ export default function AdminPanel() {
             roles: d.roles || (d.role ? [d.role] : ['docente']),
             cursos: d.cursosAsignados ? d.cursosAsignados.join(', ') : '',
             materiaEspecial: d.materiaEspecial || '',
-            hijosDnis: d.hijosDnis ? d.hijosDnis.join(', ') : ''
+            hijosDnis: d.hijosDnis ? d.hijosDnis.join(', ') : '',
+            cargo: d.cargo || ''
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -237,7 +238,8 @@ export default function AdminPanel() {
                     roles: newDocente.roles,
                     cursosAsignados: isOnlyFamilia ? [] : newDocente.cursos.split(',').map(c => c.trim()).filter(Boolean),
                     materiaEspecial: newDocente.roles.includes('docente_area') ? newDocente.materiaEspecial : null,
-                    hijosDnis: newDocente.roles.includes('familia') ? newDocente.hijosDnis.split(',').map(h => h.trim()).filter(Boolean) : null
+                    hijosDnis: newDocente.roles.includes('familia') ? newDocente.hijosDnis.split(',').map(h => h.trim()).filter(Boolean) : null,
+                    cargo: newDocente.roles.includes('equipo_conduccion') ? newDocente.cargo : null
                 };
 
                 if (isOnlyFamilia) docenteData.email = submitEmail;
@@ -282,6 +284,7 @@ export default function AdminPanel() {
                     cursosAsignados: isOnlyFamilia ? [] : newDocente.cursos.split(',').map(c => c.trim()).filter(Boolean),
                     materiaEspecial: newDocente.roles.includes('docente_area') ? newDocente.materiaEspecial : null,
                     hijosDnis: newDocente.roles.includes('familia') ? newDocente.hijosDnis.split(',').map(h => h.trim()).filter(Boolean) : null,
+                    cargo: newDocente.roles.includes('equipo_conduccion') ? newDocente.cargo : null,
                     createdAt: new Date(),
                     mustChangePassword: true
                 };
@@ -300,7 +303,7 @@ export default function AdminPanel() {
 
     const cancelEditDocente = () => {
         setEditingDocente(null);
-        setNewDocente({ nombre: '', apellido: '', dni: '', email: '', password: '', roles: ['docente'], cursos: '', materiaEspecial: '', hijosDnis: '' });
+        setNewDocente({ nombre: '', apellido: '', dni: '', email: '', password: '', roles: ['docente'], cursos: '', materiaEspecial: '', hijosDnis: '', cargo: '' });
     };
 
     const downloadTeacherCSVModel = () => {
@@ -671,6 +674,21 @@ export default function AdminPanel() {
         }
     };
 
+    const formatLastLogin = (iso) => {
+        if (!iso) return <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Nunca</span>;
+        try {
+            const diff = Date.now() - new Date(iso).getTime();
+            const mins = Math.floor(diff / 60000);
+            if (mins < 1) return 'Hace un momento';
+            if (mins < 60) return `Hace ${mins} min`;
+            const hrs = Math.floor(mins / 60);
+            if (hrs < 24) return `Hace ${hrs}h`;
+            const days = Math.floor(hrs / 24);
+            if (days < 7) return `Hace ${days} día${days > 1 ? 's' : ''}`;
+            return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+        } catch { return '—'; }
+    };
+
     return (
         <div className="container" style={{ paddingBottom: '3rem' }}>
             <h1 className="mb-4 flex items-center gap-2">
@@ -787,6 +805,19 @@ export default function AdminPanel() {
                                 </div>
                             )}
 
+                            {newDocente.roles.includes('equipo_conduccion') && (
+                                <div className="input-group">
+                                    <label className="input-label" style={{ fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>Cargo en Conducción</label>
+                                    <select className="input-field" value={newDocente.cargo} onChange={e => setNewDocente({ ...newDocente, cargo: e.target.value })} required>
+                                        <option value="" disabled>Seleccione el cargo...</option>
+                                        <option value="Director/a">Director/a</option>
+                                        <option value="Vicedirector/a">Vicedirector/a</option>
+                                        <option value="Secretario/a">Secretario/a</option>
+                                        <option value="Prosecretario/a">Prosecretario/a</option>
+                                    </select>
+                                </div>
+                            )}
+
                             {newDocente.roles.includes('familia') && (
                                 <div className="input-group">
                                     <input className="input-field" placeholder="DNI de los Hijos (separados por coma)" required value={newDocente.hijosDnis} onChange={e => setNewDocente({ ...newDocente, hijosDnis: e.target.value })} />
@@ -848,7 +879,8 @@ export default function AdminPanel() {
                                         <th style={{ padding: '0.5rem', textAlign: 'left' }}>Nombre/Roles Activos</th>
                                         <th style={{ padding: '0.5rem', textAlign: 'left' }}>DNI</th>
                                         <th style={{ padding: '0.5rem', textAlign: 'left' }}>Email / Cursos</th>
-                                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Administrar</th>
+                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Últ. Conexión</th>
+                                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Admin</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -859,7 +891,10 @@ export default function AdminPanel() {
                                                 <div className="flex gap-1 flex-wrap mt-1">
                                                     {(d.roles || (d.role ? [d.role] : ['docente'])).map((rolName, i) => (
                                                         <span key={i} className={`badge ${['administrador', 'equipo_conduccion'].includes(rolName) ? 'badge-error' : rolName === 'familia' ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.65rem' }}>
-                                                            {rolName === 'docente' ? 'Titular' : rolName === 'docente_area' ? `Área` : rolName.toUpperCase()}
+                                                            {rolName === 'docente' ? 'Titular'
+                                                                : rolName === 'docente_area' ? `Área`
+                                                                    : rolName === 'equipo_conduccion' ? (d.cargo || 'Conducción')
+                                                                        : rolName.toUpperCase()}
                                                         </span>
                                                     ))}
                                                 </div>
@@ -867,7 +902,10 @@ export default function AdminPanel() {
                                             <td style={{ padding: '0.5rem' }}>{d.dni}</td>
                                             <td style={{ padding: '0.5rem' }}>
                                                 <div>{d.email}</div>
-                                                <div style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>{d.cursosAsignados?.join(', ')}</div>
+                                                <div style={{ color: 'var(--color-primary)', fontWeight: 'bold', fontSize: '0.75rem' }}>{d.cursosAsignados?.join(', ')}</div>
+                                            </td>
+                                            <td style={{ padding: '0.5rem', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                                                {formatLastLogin(d.lastLogin)}
                                             </td>
                                             <td style={{ padding: '0.5rem', textAlign: 'right' }}>
                                                 <button onClick={() => handleEditDocente(d)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', marginRight: '0.5rem' }} title="Editar">

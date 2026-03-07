@@ -72,6 +72,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                                     }}
                                 >
                                     {roleLabels[r] || r.toUpperCase()}
+                                    {r === 'equipo_conduccion' && currentUser?.cargo && ` (${currentUser.cargo})`}
                                 </button>
                             ))}
                         </div>
@@ -192,7 +193,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                     </div>
                     <div>
                         <p style={{ margin: 0, fontWeight: 600, fontSize: '0.875rem', color: '#fff' }}>{currentUser?.displayName || 'Usuario'}</p>
-                        <p style={{ margin: 0, fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)' }}>Perfil Activo: <br /><b>{roleLabels[activeRole] || activeRole}</b></p>
+                        <p style={{ margin: 0, fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)' }}>Perfil Activo: <br /><b>{activeRole === 'equipo_conduccion' && currentUser?.cargo ? currentUser.cargo : (roleLabels[activeRole] || activeRole)}</b></p>
                     </div>
                 </div>
 
