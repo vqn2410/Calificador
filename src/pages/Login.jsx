@@ -26,42 +26,56 @@ export default function Login() {
 
     async function handleSubmit(e) {
         e.preventDefault();
+        setError('');
+        setLoading(true);
+
+        const finalEmail = email.trim();
+
+        if (!finalEmail.includes('@')) {
+            setError('Debe ingresar un correo electrónico válido.');
+            setLoading(false);
+            return;
+        }
+
         try {
-            setError('');
-            setLoading(true);
-
-            // 1. Check App Settings
-            const configRef = doc(db, 'config', 'appSettings');
-            const configSnap = await getDoc(configRef);
-            const allowFamily = configSnap.exists() ? configSnap.data().allowFamilyAccess : true;
-
-            let finalEmail = email.trim();
-
-            if (!finalEmail.includes('@')) {
-                setError('Debe ingresar un correo electrónico válido.');
+            // ── Step 1: Authenticate with Firebase Auth ──────────────
+            let userCredential;
+            try {
+                userCredential = await login(finalEmail, password);
+            } catch (authErr) {
+                const code = authErr.code || '';
+                if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+                    setError('Correo o contraseña incorrectos. Verificá tus datos.');
+                } else if (code === 'auth/too-many-requests') {
+                    setError('Demasiados intentos fallidos. Esperá unos minutos o restablecé tu contraseña.');
+                } else if (code === 'auth/network-request-failed') {
+                    setError('Sin conexión a Internet. Verificá tu red.');
+                } else {
+                    setError('Error al iniciar sesión: ' + (authErr.message || code));
+                }
                 setLoading(false);
                 return;
             }
 
-            if (!allowFamily && finalEmail.endsWith('@familia.com')) {
-                setError('El acceso para Familias está temporalmente deshabilitado por el administrador.');
-                setLoading(false);
-                return;
-            }
-
-            const userCredential = await login(finalEmail, password);
             const user = userCredential.user;
 
-            // 2. Double check role after login in case they aren't @familia but only have family role
-            // AuthContext will sign them out, but we want to show a message here
-            const docRef = doc(db, 'docentes', user.uid);
-            const docSnap = await getDoc(docRef);
+            // ── Step 2: Read profile + config (now authenticated) ────
+            const [docSnap, configSnap] = await Promise.all([
+                getDoc(doc(db, 'docentes', user.uid)),
+                getDoc(doc(db, 'config', 'appSettings')),
+            ]);
+
+            const allowFamily = configSnap.exists() ? configSnap.data().allowFamilyAccess : true;
+
             let roles = ['familia'];
             if (docSnap.exists()) {
-                roles = docSnap.data().roles || (docSnap.data().role ? [docSnap.data().role] : ['familia']);
+                const data = docSnap.data();
+                roles = data.roles || (data.role ? [data.role] : ['familia']);
             }
 
-            const isStaff = roles.some(r => ['docente', 'docente_area', 'administrador', 'equipo_conduccion'].includes(r));
+            const isStaff = roles.some(r =>
+                ['docente', 'docente_area', 'administrador', 'equipo_conduccion'].includes(r)
+            );
 
             if (!allowFamily && !isStaff) {
                 await signOut(auth);
@@ -71,18 +85,15 @@ export default function Login() {
             }
 
             const mustChange = docSnap.exists() ? docSnap.data().mustChangePassword : false;
+            navigate(mustChange ? '/force-password-change' : '/');
 
-            if (mustChange) {
-                navigate('/force-password-change');
-            } else {
-                navigate('/');
-            }
         } catch (err) {
-            setError('Error al iniciar sesión. Verifique sus credenciales.');
-            console.error(err);
+            console.error('Login error:', err);
+            setError('Error inesperado. Intentá nuevamente.');
         }
         setLoading(false);
     }
+
 
     return (
         <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-primary)' }}>
