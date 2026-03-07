@@ -18,7 +18,7 @@ export default function ForgotPassword() {
             setError('');
             setLoading(true);
             await resetPassword(email);
-            setMessage('Se ha enviado un correo electrónico con instrucciones para restablecer tu contraseña. Revisa tu bandeja de entrada (y la carpeta de spam).');
+            setMessage('Se ha enviado un correo electrónico con instrucciones para restablecer tu contraseña. Revisa tu bandeja de entrada (revise la carpeta de spam).');
         } catch (err) {
             console.error(err);
             setError('No se pudo enviar el correo de recuperación. Verifique que el correo ingresado sea correcto o contacte al administrador.');
