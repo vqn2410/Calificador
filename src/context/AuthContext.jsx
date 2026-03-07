@@ -5,7 +5,7 @@ import {
     signOut,
     sendPasswordResetEmail,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 
 const AuthContext = createContext();
@@ -18,6 +18,7 @@ export function AuthProvider({ children }) {
     const [currentUser, setCurrentUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeRole, setActiveRole] = useState(null);
+    const [needsRolePicker, setNeedsRolePicker] = useState(false);
 
     async function login(email, password) {
         return signInWithEmailAndPassword(auth, email, password);
@@ -30,6 +31,7 @@ export function AuthProvider({ children }) {
     function logout() {
         localStorage.removeItem('activeRole');
         setActiveRole(null);
+        setNeedsRolePicker(false);
         return signOut(auth);
     }
 
@@ -37,6 +39,15 @@ export function AuthProvider({ children }) {
         if (currentUser && currentUser.roles.includes(role)) {
             setActiveRole(role);
             localStorage.setItem('activeRole', role);
+        }
+    }
+
+    // Called from the role picker on fresh login
+    function confirmRole(role) {
+        if (currentUser && currentUser.roles.includes(role)) {
+            setActiveRole(role);
+            localStorage.setItem('activeRole', role);
+            setNeedsRolePicker(false);
         }
     }
 
@@ -67,7 +78,9 @@ export function AuthProvider({ children }) {
                     const configSnap = await getDoc(configRef);
                     const allowFamily = configSnap.exists() ? configSnap.data().allowFamilyAccess : true;
 
-                    const isStaff = finalRoles.some(r => ['docente', 'docente_area', 'administrador', 'equipo_conduccion'].includes(r));
+                    const isStaff = finalRoles.some(r =>
+                        ['docente', 'docente_area', 'administrador', 'equipo_conduccion'].includes(r)
+                    );
 
                     if (!allowFamily && !isStaff) {
                         await signOut(auth);
@@ -86,27 +99,37 @@ export function AuthProvider({ children }) {
 
                     setCurrentUser(userObj);
 
-                    // Record last login timestamp
+                    // Record last login timestamp (non-critical)
                     try {
                         await updateDoc(docRef, { lastLogin: new Date().toISOString() });
-                    } catch (_) { /* Non-critical, ignore */ }
+                    } catch (_) { /* ignore */ }
 
-                    // Initialize activeRole
+                    // ── Role selection logic ──────────────────────────────
                     const savedRole = localStorage.getItem('activeRole');
                     if (savedRole && finalRoles.includes(savedRole)) {
+                        // Returning user (page refresh): restore saved role
                         setActiveRole(savedRole);
+                        setNeedsRolePicker(false);
+                    } else if (finalRoles.length > 1) {
+                        // Fresh login, multiple roles → show picker
+                        setActiveRole(null);
+                        setNeedsRolePicker(true);
                     } else {
+                        // Single role: auto-select, no picker needed
                         setActiveRole(finalRoles[0]);
+                        setNeedsRolePicker(false);
                     }
 
                 } catch (error) {
-                    console.error("Error fetching user data", error);
+                    console.error('Error fetching user data', error);
                     setCurrentUser({ uid: user.uid, email: user.email, roles: ['familia'] });
                     setActiveRole('familia');
+                    setNeedsRolePicker(false);
                 }
             } else {
                 setCurrentUser(null);
                 setActiveRole(null);
+                setNeedsRolePicker(false);
             }
             setLoading(false);
         });
@@ -117,10 +140,12 @@ export function AuthProvider({ children }) {
     const value = {
         currentUser,
         activeRole,
+        needsRolePicker,
         login,
         resetPassword,
         logout,
-        switchRole
+        switchRole,
+        confirmRole,
     };
 
     return (

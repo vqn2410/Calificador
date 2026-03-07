@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { useAuth } from '../../context/AuthContext';
 import { LayoutDashboard, Users, LogOut, ShieldCheck, ChevronDown, UserCircle2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 const roleLabels = {
     'administrador': 'Administrador',
@@ -16,6 +16,8 @@ export default function Layout() {
     const { currentUser, logout, activeRole, switchRole } = useAuth();
     const navigate = useNavigate();
     const [showRoleMenu, setShowRoleMenu] = useState(false);
+    const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 });
+    const roleButtonRef = useRef(null);
 
     const handleLogout = async () => {
         try {
@@ -29,6 +31,17 @@ export default function Layout() {
     const handleSwitchRole = (role) => {
         switchRole(role);
         setShowRoleMenu(false);
+    };
+
+    const toggleRoleMenu = () => {
+        if (!showRoleMenu && roleButtonRef.current) {
+            const rect = roleButtonRef.current.getBoundingClientRect();
+            setDropdownPos({
+                top: rect.bottom + 6,
+                right: window.innerWidth - rect.right,
+            });
+        }
+        setShowRoleMenu(v => !v);
     };
 
     const hasMultipleRoles = (currentUser?.roles || []).length > 1;
@@ -50,13 +63,14 @@ export default function Layout() {
                     {hasMultipleRoles && (
                         <div style={{ position: 'relative' }}>
                             <button
-                                onClick={() => setShowRoleMenu(!showRoleMenu)}
+                                ref={roleButtonRef}
+                                onClick={toggleRoleMenu}
                                 className="btn flex items-center gap-1"
                                 style={{ padding: '0.4rem 0.6rem', fontSize: '0.75rem', backgroundColor: 'rgba(255,255,255,0.15)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px' }}
                                 title="Cambiar perfil"
                             >
                                 <UserCircle2 size={16} />
-                                <span style={{ maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <span style={{ maxWidth: '90px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.72rem' }}>
                                     {activeRole === 'equipo_conduccion' && currentUser?.cargo ? currentUser.cargo : (roleLabels[activeRole] || activeRole)}
                                 </span>
                                 <ChevronDown size={14} />
@@ -67,14 +81,20 @@ export default function Layout() {
                                     {/* Backdrop */}
                                     <div
                                         onClick={() => setShowRoleMenu(false)}
-                                        style={{ position: 'fixed', inset: 0, zIndex: 998 }}
+                                        style={{ position: 'fixed', inset: 0, zIndex: 1998 }}
                                     />
-                                    {/* Dropdown */}
+                                    {/* Dropdown — uses fixed positioning so it's never clipped */}
                                     <div style={{
-                                        position: 'absolute', right: 0, top: '110%', zIndex: 999,
-                                        backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)',
-                                        borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
-                                        minWidth: '160px', overflow: 'hidden'
+                                        position: 'fixed',
+                                        top: dropdownPos.top,
+                                        right: dropdownPos.right,
+                                        zIndex: 1999,
+                                        backgroundColor: 'var(--color-surface)',
+                                        border: '1px solid var(--color-border)',
+                                        borderRadius: '10px',
+                                        boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+                                        minWidth: '180px',
+                                        overflow: 'hidden'
                                     }}>
                                         <div style={{ padding: '0.5rem 0.75rem', fontSize: '0.7rem', color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)', textTransform: 'uppercase', fontWeight: 700 }}>
                                             Cambiar perfil
@@ -84,17 +104,18 @@ export default function Layout() {
                                                 key={role}
                                                 onClick={() => handleSwitchRole(role)}
                                                 style={{
-                                                    display: 'block', width: '100%', textAlign: 'left',
-                                                    padding: '0.6rem 0.75rem', fontSize: '0.875rem',
-                                                    backgroundColor: activeRole === role ? 'rgba(4,75,127,0.1)' : 'transparent',
+                                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                                    width: '100%', textAlign: 'left',
+                                                    padding: '0.65rem 0.75rem', fontSize: '0.875rem',
+                                                    backgroundColor: activeRole === role ? 'rgba(4,75,127,0.08)' : 'transparent',
                                                     color: activeRole === role ? 'var(--color-primary)' : 'var(--color-text)',
                                                     fontWeight: activeRole === role ? 700 : 400,
                                                     border: 'none', cursor: 'pointer',
                                                     borderLeft: activeRole === role ? '3px solid var(--color-primary)' : '3px solid transparent'
                                                 }}
                                             >
-                                                {role === 'equipo_conduccion' && currentUser?.cargo ? currentUser.cargo : (roleLabels[role] || role)}
-                                                {activeRole === role && <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem' }}>✓</span>}
+                                                <span>{role === 'equipo_conduccion' && currentUser?.cargo ? currentUser.cargo : (roleLabels[role] || role)}</span>
+                                                {activeRole === role && <span style={{ fontSize: '0.8rem', color: 'var(--color-primary)' }}>✓</span>}
                                             </button>
                                         ))}
                                     </div>

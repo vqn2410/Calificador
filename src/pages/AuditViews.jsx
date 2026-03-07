@@ -141,8 +141,8 @@ export default function AuditViews() {
                 {filterCourse && <p style={{ fontWeight: 'bold' }}>CURSO: {filterCourse}</p>}
             </div>
 
-            <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
-                <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+            <div className="table-responsive">
+                <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', minWidth: 700 }}>
                     <thead>
                         <tr style={{ backgroundColor: '#044b7f', color: 'white' }}>
                             <th rowSpan={2} style={{ border: '1px solid #ddd', padding: '10px' }}>ESTUDIANTE</th>

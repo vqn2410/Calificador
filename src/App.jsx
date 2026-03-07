@@ -13,10 +13,11 @@ import StaffOverview from './pages/StaffOverview';
 import ForcePasswordChange from './pages/ForcePasswordChange';
 import ForgotPassword from './pages/ForgotPassword';
 import MyStudents from './pages/MyStudents';
+import RolePickerOverlay from './components/Layout/RolePickerOverlay';
 import { useEffect } from 'react';
 
 function PrivateRoute({ children }) {
-  const { currentUser } = useAuth();
+  const { currentUser, needsRolePicker } = useAuth();
 
   if (!currentUser) {
     return <Navigate to="/login" replace />;
@@ -24,6 +25,11 @@ function PrivateRoute({ children }) {
 
   if (currentUser.mustChangePassword) {
     return <Navigate to="/force-password-change" replace />;
+  }
+
+  // Show role picker fullscreen when user just logged in with multiple roles
+  if (needsRolePicker) {
+    return <RolePickerOverlay />;
   }
 
   return children;

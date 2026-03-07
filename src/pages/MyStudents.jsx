@@ -153,8 +153,8 @@ export default function MyStudents() {
                 </div>
             </div>
 
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                <table className="w-full" style={{ borderCollapse: 'collapse', textAlign: 'left' }}>
+            <div className="table-responsive" style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+                <table className="w-full" style={{ borderCollapse: 'collapse', textAlign: 'left', minWidth: 480 }}>
                     <thead>
                         <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '2px solid #e2e8f0' }}>
                             <th style={{ padding: '1rem' }}>Estudiante</th>

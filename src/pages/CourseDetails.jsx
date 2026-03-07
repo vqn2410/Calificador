@@ -277,12 +277,12 @@ export default function CourseDetails() {
                     </div>
                 </div>
 
-                <div style={{ overflowX: 'auto' }}>
+                <div className="table-responsive">
                     <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                         <thead>
                             <tr style={{ backgroundColor: 'var(--color-background)', borderBottom: '2px solid var(--color-border)' }}>
                                 <th className="print-only vertical-text" style={{ padding: '1rem', width: '40px', textAlign: 'center', verticalAlign: 'middle' }}>N° DE ORDEN</th>
-                                <th style={{ padding: '1rem', minWidth: '200px', textAlign: 'center', verticalAlign: 'middle' }}>APELLIDO Y NOMBRE</th>
+                                <th style={{ padding: '1rem', minWidth: '160px', textAlign: 'center', verticalAlign: 'middle' }}>APELLIDO Y NOMBRE</th>
                                 {subjects.map((sub, i) => (
                                     <th key={i} className="vertical-text" style={{ padding: '1rem', width: '40px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle' }}>{sub.toUpperCase()}</th>
                                 ))}
@@ -292,7 +292,7 @@ export default function CourseDetails() {
                                         <th className="vertical-text" style={{ padding: '1rem', width: '40px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle' }}>INASISTENCIAS</th>
                                     </>
                                 )}
-                                <th style={{ padding: '1rem', minWidth: '200px', textAlign: 'center', verticalAlign: 'middle' }}>OBSERVACIONES</th>
+                                <th style={{ padding: '1rem', minWidth: '180px', textAlign: 'center', verticalAlign: 'middle' }}>OBSERVACIONES</th>
                             </tr>
                         </thead>
                         <tbody>
