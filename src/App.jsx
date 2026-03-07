@@ -10,6 +10,7 @@ import AdminPanel from './pages/AdminPanel';
 import FamiliasView from './pages/FamiliasView';
 import AuditViews from './pages/AuditViews';
 
+import ForcePasswordChange from './pages/ForcePasswordChange';
 import MyStudents from './pages/MyStudents';
 
 function PrivateRoute({ children }) {
@@ -17,6 +18,10 @@ function PrivateRoute({ children }) {
 
   if (!currentUser) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (currentUser.mustChangePassword) {
+    return <Navigate to="/force-password-change" replace />;
   }
 
   return children;
@@ -28,6 +33,7 @@ function App() {
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/force-password-change" element={<ForcePasswordChange />} />
 
           {/* Rutas Protegidas */}
           <Route path="/" element={

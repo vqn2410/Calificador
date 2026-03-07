@@ -73,7 +73,13 @@ export default function Login() {
                 return;
             }
 
-            navigate('/');
+            const mustChange = docSnap.exists() ? docSnap.data().mustChangePassword : false;
+
+            if (mustChange) {
+                navigate('/force-password-change');
+            } else {
+                navigate('/');
+            }
         } catch (err) {
             setError('Error al iniciar sesión. Verifique sus credenciales.');
             console.error(err);
