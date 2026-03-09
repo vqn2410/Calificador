@@ -4,7 +4,7 @@ import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth'
 import { collection, getDocs, addDoc, updateDoc, doc, setDoc, deleteDoc, query, where, getDoc } from 'firebase/firestore';
 import { db, firebaseConfig } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
-import { ShieldCheck, UserPlus, Users, User, GraduationCap, ArrowRightCircle, RefreshCcw, CheckSquare, Trash2, Edit, FileText, UploadCloud, Activity, Settings, Lock, Unlock, PenTool } from 'lucide-react';
+import { ShieldCheck, UserPlus, Users, User, GraduationCap, ArrowRightCircle, RefreshCcw, CheckSquare, Trash2, Edit, FileText, UploadCloud, Activity, Settings, Lock, Unlock, PenTool, Eye, EyeOff } from 'lucide-react';
 import InformesConduccion from './InformesConduccion';
 import { VALID_COURSES } from '../config/constants';
 
@@ -46,6 +46,7 @@ export default function AdminPanel() {
 
     // Generic states
     const [msg, setMsg] = useState({ type: '', text: '' });
+    const [showDocentePassword, setShowDocentePassword] = useState(false);
 
     useEffect(() => {
         if ((activeTab === 'docentes' || activeTab === 'familias') && docentes.length === 0) fetchDocentes();
@@ -767,7 +768,27 @@ export default function AdminPanel() {
                                     </div>
                                     {!editingDocente && (
                                         <div className="input-group">
-                                            <input className="input-field" type="password" placeholder="Contraseña de Acceso" required minLength={6} value={newDocente.password} onChange={e => setNewDocente({ ...newDocente, password: e.target.value })} />
+                                            <div style={{ position: 'relative' }}>
+                                                <input
+                                                    className="input-field"
+                                                    type={showDocentePassword ? 'text' : 'password'}
+                                                    placeholder="Contraseña de Acceso"
+                                                    required
+                                                    minLength={6}
+                                                    value={newDocente.password}
+                                                    onChange={e => setNewDocente({ ...newDocente, password: e.target.value })}
+                                                    style={{ paddingRight: '2.75rem' }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowDocentePassword(v => !v)}
+                                                    style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: '0', display: 'flex', alignItems: 'center' }}
+                                                    tabIndex={-1}
+                                                    title={showDocentePassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                                                >
+                                                    {showDocentePassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
                                 </>

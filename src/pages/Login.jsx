@@ -4,13 +4,14 @@ import { useAuth } from '../context/AuthContext';
 import { collection, query, where, getDocs, getDoc, doc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { signOut } from 'firebase/auth';
-import { LogIn } from 'lucide-react';
+import { LogIn, Eye, EyeOff } from 'lucide-react';
 
 export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const { login, currentUser } = useAuth();
     const navigate = useNavigate();
 
@@ -132,15 +133,27 @@ export default function Login() {
 
                     <div className="input-group">
                         <label className="input-label" htmlFor="password">Contraseña</label>
-                        <input
-                            id="password"
-                            type="password"
-                            className="input-field"
-                            placeholder="••••••••"
-                            required
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                        />
+                        <div style={{ position: 'relative' }}>
+                            <input
+                                id="password"
+                                type={showPassword ? 'text' : 'password'}
+                                className="input-field"
+                                placeholder="••••••••"
+                                required
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                style={{ paddingRight: '2.75rem' }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(v => !v)}
+                                style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: '0', display: 'flex', alignItems: 'center' }}
+                                tabIndex={-1}
+                                title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                            >
+                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
                     </div>
 
                     <button

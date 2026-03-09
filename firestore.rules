@@ -20,7 +20,9 @@ service cloud.firestore {
     // Write: owner can update their own doc (lastLogin, fcmToken, etc.)
     match /docentes/{userId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && isOwner(userId);
+      // create: any signed-in user can create (admins create docs for new teachers/families
+      // whose UID differs from their own — role enforcement is done in the app layer)
+      allow create: if isSignedIn();
       allow update: if isSignedIn(); // role enforcement done in app layer
       allow delete: if false;        // never delete via client
     }

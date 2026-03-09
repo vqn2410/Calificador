@@ -4,7 +4,7 @@ import { updatePassword } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
-import { Lock, AlertTriangle, CheckCircle, GraduationCap } from 'lucide-react';
+import { Lock, AlertTriangle, CheckCircle, GraduationCap, Eye, EyeOff } from 'lucide-react';
 
 export default function ForcePasswordChange() {
     const { currentUser } = useAuth();
@@ -14,6 +14,8 @@ export default function ForcePasswordChange() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [showNew, setShowNew] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
 
     useEffect(() => {
         // Si no está logueado o ya cambió la contraseña
@@ -105,28 +107,50 @@ export default function ForcePasswordChange() {
 
                         <div className="input-group" style={{ textAlign: 'left', position: 'relative' }}>
                             <label className="input-label">Nueva Contraseña</label>
-                            <input
-                                className="input-field"
-                                type="password"
-                                required
-                                value={newPassword}
-                                onChange={e => setNewPassword(e.target.value)}
-                                style={{ paddingLeft: '2.5rem' }}
-                            />
-                            <Lock size={18} color="var(--color-text-muted)" style={{ position: 'absolute', left: '1rem', top: '2.3rem' }} />
+                            <div style={{ position: 'relative' }}>
+                                <input
+                                    className="input-field"
+                                    type={showNew ? 'text' : 'password'}
+                                    required
+                                    value={newPassword}
+                                    onChange={e => setNewPassword(e.target.value)}
+                                    style={{ paddingLeft: '2.5rem', paddingRight: '2.75rem' }}
+                                />
+                                <Lock size={18} color="var(--color-text-muted)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNew(v => !v)}
+                                    style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: '0', display: 'flex', alignItems: 'center' }}
+                                    tabIndex={-1}
+                                    title={showNew ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                                >
+                                    {showNew ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
                         </div>
 
                         <div className="input-group" style={{ textAlign: 'left', position: 'relative' }}>
                             <label className="input-label">Repita la Nueva Contraseña</label>
-                            <input
-                                className="input-field"
-                                type="password"
-                                required
-                                value={confirmPassword}
-                                onChange={e => setConfirmPassword(e.target.value)}
-                                style={{ paddingLeft: '2.5rem' }}
-                            />
-                            <Lock size={18} color="var(--color-text-muted)" style={{ position: 'absolute', left: '1rem', top: '2.3rem' }} />
+                            <div style={{ position: 'relative' }}>
+                                <input
+                                    className="input-field"
+                                    type={showConfirm ? 'text' : 'password'}
+                                    required
+                                    value={confirmPassword}
+                                    onChange={e => setConfirmPassword(e.target.value)}
+                                    style={{ paddingLeft: '2.5rem', paddingRight: '2.75rem' }}
+                                />
+                                <Lock size={18} color="var(--color-text-muted)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowConfirm(v => !v)}
+                                    style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: '0', display: 'flex', alignItems: 'center' }}
+                                    tabIndex={-1}
+                                    title={showConfirm ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                                >
+                                    {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
                         </div>
 
                         <button type="submit" className="btn btn-primary w-full mt-4" disabled={loading}>
