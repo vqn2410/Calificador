@@ -5,13 +5,13 @@ import {
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { lazy, Suspense, useEffect } from 'react';
 
-// ── Always-loaded (small, always needed) ────────────────────
+// ── Always-loaded ──────────────────────────────────────────
 import Layout from './components/Layout/Layout';
 import Login from './pages/Login';
 import RolePickerOverlay from './components/Layout/RolePickerOverlay';
 import LockScreen from './components/Layout/LockScreen';
 
-// ── Lazy-loaded pages (loaded only when visited) ─────────────
+// ── Lazy-loaded pages ──────────────────────────────────────
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Courses = lazy(() => import('./pages/Courses'));
 const CourseDetails = lazy(() => import('./pages/CourseDetails'));
@@ -27,7 +27,7 @@ const Configuracion = lazy(() => import('./pages/Configuracion'));
 const Mensajeria = lazy(() => import('./pages/Mensajeria'));
 const InformesConduccion = lazy(() => import('./pages/InformesConduccion'));
 
-// ── Page loading fallback ────────────────────────────────────
+// ── Page loading fallback ──────────────────────────────────
 function PageLoader() {
   return (
     <div style={{
@@ -46,7 +46,7 @@ function PageLoader() {
   );
 }
 
-// ── Route guards ─────────────────────────────────────────────
+// ── Route guards ───────────────────────────────────────────
 function PrivateRoute({ children }) {
   const { currentUser, needsRolePicker, isLocked } = useAuth();
 
@@ -73,7 +73,7 @@ function RoleRoute({ children, allowedRoles }) {
   return children;
 }
 
-// ── App ──────────────────────────────────────────────────────
+// ── App ────────────────────────────────────────────────────
 const STAFF = ['administrador', 'equipo_conduccion', 'docente', 'docente_area'];
 const ADMIN = ['administrador', 'equipo_conduccion'];
 
@@ -105,9 +105,12 @@ function App() {
               <Route path="mis-estudiantes" element={
                 <RoleRoute allowedRoles={STAFF}><MyStudents /></RoleRoute>
               } />
+
+              {/* 🔑 Corregido: habilitado para STAFF y familia */}
               <Route path="estudiantes/:studentId" element={
-                <RoleRoute allowedRoles={STAFF}><StudentProfile /></RoleRoute>
+                <RoleRoute allowedRoles={[...STAFF, 'familia']}><StudentProfile /></RoleRoute>
               } />
+
               <Route path="audit-views" element={
                 <RoleRoute allowedRoles={STAFF}><AuditViews /></RoleRoute>
               } />

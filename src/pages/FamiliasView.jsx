@@ -92,11 +92,7 @@ export default function FamiliasView() {
                                 </div>
                             </div>
 
-                            <Link
-                                to={`/estudiantes/${hijo.id}`}
-                                className="btn btn-primary w-full"
-                                style={{ textAlign: 'center', justifyContent: 'center' }}
-                            >
+                            <Link to={`/estudiantes/${hijo.id}`} className="btn btn-primary w-full">
                                 Ingresar al Boletín Digital
                             </Link>
                         </div>
