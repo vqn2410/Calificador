@@ -14,6 +14,7 @@ export default function Login() {
     const [showPassword, setShowPassword] = useState(false);
     const { login, currentUser } = useAuth();
     const navigate = useNavigate();
+    const [loginType, setLoginType] = useState('institucional'); // 'institucional' or 'familia'
 
     useEffect(() => {
         if (currentUser) {
@@ -30,12 +31,22 @@ export default function Login() {
         setError('');
         setLoading(true);
 
-        const finalEmail = email.trim();
+        let finalEmail = email.trim();
 
-        if (!finalEmail.includes('@')) {
-            setError('Debe ingresar un correo electrónico válido.');
-            setLoading(false);
-            return;
+        if (loginType === 'familia') {
+            const cleanDni = finalEmail.replace(/[\.\s-]/g, '');
+            if (!/^\d+$/.test(cleanDni)) {
+                setError('Para el acceso de familias, ingrese solo números (DNI).');
+                setLoading(false);
+                return;
+            }
+            finalEmail = `${cleanDni}@familia.com`;
+        } else {
+            if (!finalEmail.includes('@')) {
+                setError('Debe ingresar un correo electrónico válido.');
+                setLoading(false);
+                return;
+            }
         }
 
         try {
@@ -140,12 +151,44 @@ export default function Login() {
                             style={{ width: '90px', height: '90px', borderRadius: '50%', objectFit: 'contain', border: '3px solid var(--color-primary)', padding: '4px', backgroundColor: 'white' }}
                         />
                     </div>
-                    <h2 style={{ color: 'var(--color-primary)', fontSize: '1.5rem', fontWeight: '700', marginBottom: '0.5rem' }}>
-                        Hola 👋
+                    <h2 style={{ color: 'var(--color-primary)', fontSize: '1.5rem', fontWeight: '700', marginBottom: '1.5rem' }}>
+                        ¡Bienvenido! 👋
                     </h2>
-                    <p style={{ color: 'var(--color-primary)', fontSize: '0.95rem', fontWeight: '600', cursor: 'pointer', margin: 0 }}>
-                        Cambiar de usuario
-                    </p>
+                    
+                    <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', marginBottom: '2rem' }}>
+                        <button 
+                            type="button"
+                            onClick={() => { setLoginType('institucional'); setError(''); }}
+                            style={{ 
+                                flex: 1, 
+                                padding: '0.75rem', 
+                                background: 'none', 
+                                border: 'none', 
+                                borderBottom: loginType === 'institucional' ? '3px solid var(--color-primary)' : 'none',
+                                color: loginType === 'institucional' ? 'var(--color-primary)' : '#64748b',
+                                fontWeight: loginType === 'institucional' ? '700' : '500',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Institucional
+                        </button>
+                        <button 
+                            type="button"
+                            onClick={() => { setLoginType('familia'); setError(''); }}
+                            style={{ 
+                                flex: 1, 
+                                padding: '0.75rem', 
+                                background: 'none', 
+                                border: 'none', 
+                                borderBottom: loginType === 'familia' ? '3px solid var(--color-primary)' : 'none',
+                                color: loginType === 'familia' ? 'var(--color-primary)' : '#64748b',
+                                fontWeight: loginType === 'familia' ? '700' : '500',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Familias
+                        </button>
+                    </div>
                 </div>
 
                 {error && <div className="badge badge-error" style={{ display: 'block', textAlign: 'center', marginBottom: '1.5rem', padding: '0.75rem' }}>{error}</div>}
@@ -154,9 +197,9 @@ export default function Login() {
                     <div className="input-group" style={{ marginBottom: '1rem' }}>
                         <input
                             id="email"
-                            type="email"
+                            type={loginType === 'familia' ? 'text' : 'email'}
                             className="input-field"
-                            placeholder="Usuario o correo"
+                            placeholder={loginType === 'familia' ? 'DNI del Responsable' : 'Usuario o correo'}
                             required
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
@@ -170,7 +213,7 @@ export default function Login() {
                                 id="password"
                                 type={showPassword ? 'text' : 'password'}
                                 className="input-field"
-                                placeholder="Clave"
+                                placeholder={loginType === 'familia' ? 'Clave (DNI por defecto)' : 'Clave'}
                                 required
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}

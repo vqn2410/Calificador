@@ -256,7 +256,7 @@ export default function StudentProfile() {
                         </div>
                         <div>
                             <h1 style={{ color: 'white', margin: 0, fontSize: '1.2rem' }}>{student?.nombre}</h1>
-                            <p style={{ margin: 0, color: 'rgba(255,255,255,0.8)', fontSize: '0.8rem' }}>DNI: {student?.dni}</p>
+                            <p style={{ margin: 0, color: 'rgba(255,255,255,0.8)', fontSize: '0.8rem' }}>DNI: {student?.dni} | Fecha Nac.: {student?.fechaNacimiento || '-'}</p>
                         </div>
                     </div>
 
@@ -419,6 +419,7 @@ export default function StudentProfile() {
                         <div className="header-info">
                             <span>ALUMNO: {student?.nombre.toUpperCase()}</span>
                             <span>DNI: {student?.dni}</span>
+                            <span>NAC.: {student?.fechaNacimiento || '-'}</span>
                             <span>ESTADO: REGULAR</span>
                         </div>
 

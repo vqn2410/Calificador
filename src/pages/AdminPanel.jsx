@@ -39,6 +39,7 @@ export default function AdminPanel() {
         grado: '', 
         seccion: '', 
         turno: 'Mañana', 
+        fechaNacimiento: '',
         responsables: [{ nombreCompleto: '', dni: '', telefono: '', correo: '', parentesco: 'Madre/Padre' }] 
     });
     const [searchStudentTerm, setSearchStudentTerm] = useState('');
@@ -413,8 +414,8 @@ export default function AdminPanel() {
 
                     await updateDoc(doc(db, 'docentes', familiar.id), updateData);
                 } else {
-                    const submitEmail = resp.correo.includes('@') ? resp.correo : `${resp.correo}@familia.com`;
-                    const submitPassword = resp.dni.replace(/[\.\s-]/g, '');
+                    const submitEmail = `${cleanFamDni}@familia.com`;
+                    const submitPassword = cleanFamDni;
 
                     const userCredential = await createUserWithEmailAndPassword(secondaryAuth, submitEmail, submitPassword);
                     await signOut(secondaryAuth);
@@ -422,7 +423,8 @@ export default function AdminPanel() {
                     const familiarData = {
                         displayName: resp.nombreCompleto,
                         dni: cleanFamDni,
-                        email: submitEmail,
+                        email: resp.correo, // Store real email for reference/notifications
+                        authEmail: submitEmail, // Optional: tracking auth email
                         telefono: resp.telefono,
                         roles: ['familia'],
                         hijosDnis: [cleanEstDni],
@@ -441,6 +443,7 @@ export default function AdminPanel() {
             const estudianteData = {
                 nombre: newEstudiante.nombreCompleto,
                 dni: cleanEstDni,
+                fechaNacimiento: newEstudiante.fechaNacimiento,
                 cursoId: nuevoCursoId,
                 turno: newEstudiante.turno,
                 responsables: responsablesData
@@ -479,6 +482,7 @@ export default function AdminPanel() {
             grado: gr,
             seccion: sec,
             turno: est.turno || 'Mañana',
+            fechaNacimiento: est.fechaNacimiento || '',
             responsables: []
         };
 
@@ -516,6 +520,7 @@ export default function AdminPanel() {
             grado: '', 
             seccion: '', 
             turno: 'Mañana', 
+            fechaNacimiento: '',
             responsables: [{ nombreCompleto: '', dni: '', telefono: '', correo: '', parentesco: 'Madre/Padre' }] 
         });
     };
@@ -561,7 +566,7 @@ export default function AdminPanel() {
 
     // CSV LOGIC
     const downloadCSVModel = () => {
-        const csvContent = "data:text/csv;charset=utf-8,NOMBRE_COMPLETO,DNI,GRADO,SECCION,TURNO,FAM_NOMBRE_COMPLETO,FAM_DNI,FAM_TEL,FAM_CORREO\nJuan Perez,12345678,1,A,Mañana,Carlos Perez,11222333,1155556666,carlos@correo.com\nMaria Gomez,87654321,3,B,Tarde,Ana Gomez,33444555,1144445555,ana@correo.com";
+        const csvContent = "data:text/csv;charset=utf-8,NOMBRE_COMPLETO,DNI,FECHA_NACIMIENTO,GRADO,SECCION,TURNO,FAM1_NOMBRE,FAM1_DNI,FAM1_TEL,FAM1_CORREO,FAM2_NOMBRE,FAM2_DNI,FAM2_TEL,FAM2_CORREO\nJuan Perez,12345678,2015-05-15,1,A,Mañana,Carlos Perez,11222333,1155556666,carlos@correo.com,Maria Lopez,22333444,1166667777,maria@correo.com";
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -584,12 +589,18 @@ export default function AdminPanel() {
                 let count = 0;
 
                 for (let i = 1; i < rows.length; i++) {
-                    if (cols.length >= 5) {
-                        const [nombreCompleto, dni, grado, seccion, turno, famNombreCompleto, famD, famT, famC] = cols;
+                    const cols = rows[i].split(',').map(c => c.trim().replace(/"/g, ''));
+                    if (cols.length >= 8) {
+                        const [nombreCompleto, dni, fechaNac, grado, seccion, turno, fam1N, fam1D, fam1T, fam1C, fam2N, fam2D, fam2T, fam2C] = cols;
                         if (!dni) continue;
 
-                        if (famD && famC && famNombreCompleto) {
-                            const q = query(collection(db, 'docentes'), where('dni', '==', famD));
+                        const responsablesData = [];
+
+                        // Helper for processing each familiar in CSV
+                        const processFamiliar = async (fN, fD, fT, fC) => {
+                            if (!fD || !fC || !fN) return null;
+                            const cleanFD = fD.replace(/[\.\s-]/g, '');
+                            const q = query(collection(db, 'docentes'), where('dni', '==', cleanFD));
                             const snap = await getDocs(q);
                             if (!snap.empty) {
                                 const familiar = snap.docs[0];
@@ -598,15 +609,24 @@ export default function AdminPanel() {
                                 const updatedHijos = [...new Set([...(famData.hijosDnis || []), dni])];
                                 await updateDoc(doc(db, 'docentes', familiar.id), { roles: updatedRoles, hijosDnis: updatedHijos });
                             } else {
-                                const submitEmail = famC.includes('@') ? famC : `${famC}@familia.com`;
-                                const userCredential = await createUserWithEmailAndPassword(secondaryAuth, submitEmail, famD);
-                                await signOut(secondaryAuth);
-                                const familiarData = {
-                                    displayName: famNombreCompleto, dni: famD, email: submitEmail, telefono: famT || '', roles: ['familia'], hijosDnis: [dni], createdAt: new Date(), mustChangePassword: true
-                                };
-                                await setDoc(doc(db, 'docentes', userCredential.user.uid), familiarData);
+                                try {
+                                    const submitEmail = `${cleanFD}@familia.com`;
+                                    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, submitEmail, cleanFD);
+                                    await signOut(secondaryAuth);
+                                    const familiarData = {
+                                        displayName: fN, dni: cleanFD, email: fC, authEmail: submitEmail, telefono: fT || '', roles: ['familia'], hijosDnis: [dni], createdAt: new Date(), mustChangePassword: true
+                                    };
+                                    await setDoc(doc(db, 'docentes', userCredential.user.uid), familiarData);
+                                } catch (e) { console.error("Error creating familiar in CSV upload:", e); }
                             }
-                        }
+                            return { dni: cleanFD, parentesco: 'Familiar' };
+                        };
+
+                        const r1 = await processFamiliar(fam1N, fam1D, fam1T, fam1C);
+                        if (r1) responsablesData.push(r1);
+
+                        const r2 = await processFamiliar(fam2N, fam2D, fam2T, fam2C);
+                        if (r2) responsablesData.push(r2);
 
                         const nuevoTurnoStr = turno.toLowerCase().includes('ma') ? 'TM' : 'TT';
                         const nuevoCursoId = `${grado}${seccion.toUpperCase()}-${nuevoTurnoStr}`;
@@ -614,8 +634,10 @@ export default function AdminPanel() {
                         const estudianteData = {
                             nombre: nombreCompleto,
                             dni: dni,
+                            fechaNacimiento: fechaNac || '',
                             cursoId: nuevoCursoId,
                             turno: turno.toLowerCase().includes('ma') ? 'Mañana' : 'Tarde',
+                            responsables: responsablesData,
                             asistencia: '0%',
                             informes: [],
                             historicoCursos: []
@@ -1078,8 +1100,13 @@ export default function AdminPanel() {
                                 <div className="input-group">
                                     <input className="input-field" placeholder="Nombre Completo del Estudiante" required value={newEstudiante.nombreCompleto} onChange={e => setNewEstudiante({ ...newEstudiante, nombreCompleto: e.target.value })} />
                                 </div>
-                                <div className="input-group">
-                                    <input className="input-field" placeholder="DNI Estudiante" required value={newEstudiante.dni} onChange={e => setNewEstudiante({ ...newEstudiante, dni: e.target.value })} />
+                                <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                                    <div className="input-group">
+                                        <input className="input-field" placeholder="DNI Estudiante" required value={newEstudiante.dni} onChange={e => setNewEstudiante({ ...newEstudiante, dni: e.target.value })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <input className="input-field" type="date" title="Fecha de Nacimiento" required value={newEstudiante.fechaNacimiento} onChange={e => setNewEstudiante({ ...newEstudiante, fechaNacimiento: e.target.value })} />
+                                    </div>
                                 </div>
                                 <h4 style={{ margin: '1rem 0 0.5rem', fontSize: '0.9rem', color: 'var(--color-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     Responsables Familiares ({newEstudiante.responsables.length})
