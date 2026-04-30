@@ -95,12 +95,19 @@ export default function Layout() {
                                 ref={roleButtonRef}
                                 onClick={toggleRoleMenu}
                                 className="btn flex items-center gap-1"
-                                style={{ padding: '0.35rem 0.55rem', fontSize: '0.72rem', backgroundColor: 'rgba(255,255,255,0.15)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px' }}
+                                style={{ 
+                                    padding: '0.4rem 0.65rem', 
+                                    fontSize: '0.75rem', 
+                                    backgroundColor: '#ef4444', 
+                                    color: 'white', 
+                                    border: '1px solid rgba(255,255,255,0.3)', 
+                                    borderRadius: '8px',
+                                    fontWeight: 800,
+                                    boxShadow: '0 2px 8px rgba(239, 68, 68, 0.4)'
+                                }}
                             >
-                                <UserCircle2 size={15} />
-                                <span style={{ maxWidth: 78, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {activeRole === 'equipo_conduccion' && currentUser?.cargo ? currentUser.cargo : (roleLabels[activeRole] || activeRole)}
-                                </span>
+                                <UserCircle2 size={16} />
+                                <span>CAMBIAR ROL</span>
                                 <ChevronDown size={13} />
                             </button>
 

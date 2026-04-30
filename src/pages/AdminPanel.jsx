@@ -18,6 +18,11 @@ export default function AdminPanel() {
     // All possible courses normalized from constants
     const ALL_COURSES = VALID_COURSES.map(c => c.id);
 
+    const getCourseLabel = (id) => {
+        if (!id) return 'Sin asignar';
+        return id.replace('CURSO-', '');
+    };
+
     // States Docentes
     const [docentes, setDocentes] = useState([]);
     const [loadingDocentes, setLoadingDocentes] = useState(false);
@@ -235,7 +240,7 @@ export default function AdminPanel() {
                     nombre: newDocente.nombre,
                     apellido: newDocente.apellido,
                     displayName: `${newDocente.nombre} ${newDocente.apellido}`,
-                    dni: newDocente.dni,
+                    dni: newDocente.dni.replace(/[\.\s-]/g, ''),
                     roles: newDocente.roles,
                     cursosAsignados: isOnlyFamilia ? [] : newDocente.cursos.split(',').map(c => c.trim()).filter(Boolean),
                     materiaEspecial: newDocente.roles.includes('docente_area') ? newDocente.materiaEspecial : null,
@@ -272,6 +277,7 @@ export default function AdminPanel() {
                     return showMessage('error', 'Faltan credenciales válidas o DNI de hijo para completar la cuenta.');
                 }
 
+                const cleanDni = newDocente.dni.replace(/[\.\s-]/g, '');
                 const userCredential = await createUserWithEmailAndPassword(secondaryAuth, submitEmail, submitPassword);
                 await signOut(secondaryAuth);
 
@@ -279,7 +285,7 @@ export default function AdminPanel() {
                     nombre: newDocente.nombre,
                     apellido: newDocente.apellido,
                     displayName: `${newDocente.nombre} ${newDocente.apellido}`,
-                    dni: newDocente.dni,
+                    dni: cleanDni,
                     email: submitEmail,
                     roles: newDocente.roles,
                     cursosAsignados: isOnlyFamilia ? [] : newDocente.cursos.split(',').map(c => c.trim()).filter(Boolean),
@@ -386,14 +392,17 @@ export default function AdminPanel() {
                 return showMessage('error', 'Faltan datos obligatorios del familiar responsable.');
             }
 
-            const q = query(collection(db, 'docentes'), where('dni', '==', newEstudiante.famDni));
+            const cleanFamDni = newEstudiante.famDni.replace(/[\.\s-]/g, '');
+            const cleanEstDni = newEstudiante.dni.replace(/[\.\s-]/g, '');
+            
+            const q = query(collection(db, 'docentes'), where('dni', '==', cleanFamDni));
             const snap = await getDocs(q);
 
             if (!snap.empty) {
                 const familiar = snap.docs[0];
                 const famData = familiar.data();
                 const updatedRoles = [...new Set([...(famData.roles || []), 'familia'])];
-                const updatedHijos = [...new Set([...(famData.hijosDnis || []), newEstudiante.dni])];
+                const updatedHijos = [...new Set([...(famData.hijosDnis || []), cleanEstDni])];
 
                 await updateDoc(doc(db, 'docentes', familiar.id), {
                     roles: updatedRoles,
@@ -411,28 +420,31 @@ export default function AdminPanel() {
                     nombre: newEstudiante.famNombre,
                     apellido: newEstudiante.famApellido,
                     displayName: `${newEstudiante.famNombre} ${newEstudiante.famApellido}`,
-                    dni: newEstudiante.famDni,
+                    dni: cleanFamDni,
                     email: submitEmail,
                     telefono: newEstudiante.famTelefono,
                     roles: ['familia'],
-                    hijosDnis: [newEstudiante.dni],
+                    hijosDnis: [cleanEstDni],
                     createdAt: new Date(),
                     mustChangePassword: true
                 };
                 // Adding parentesco to famData directly helps keep it localized
-                familiarData[`parentesco_${newEstudiante.dni}`] = newEstudiante.famParentesco;
+                familiarData[`parentesco_${cleanEstDni}`] = newEstudiante.famParentesco;
                 await setDoc(doc(db, 'docentes', userCredential.user.uid), familiarData);
             }
 
             const nuevoTurnoStr = newEstudiante.turno === 'Mañana' ? 'TM' : 'TT';
             const nuevoCursoId = `${newEstudiante.grado}${newEstudiante.seccion}-${nuevoTurnoStr}`;
 
+            const cleanEstDniFinal = newEstudiante.dni.replace(/[\.\s-]/g, '');
+            const cleanFamDniFinal = newEstudiante.famDni.replace(/[\.\s-]/g, '');
+            
             const estudianteData = {
                 nombre: `${newEstudiante.apellido}, ${newEstudiante.nombre}`,
-                dni: newEstudiante.dni,
+                dni: cleanEstDniFinal,
                 cursoId: nuevoCursoId,
                 turno: newEstudiante.turno,
-                famFiliacion: { dni: newEstudiante.famDni, parentesco: newEstudiante.famParentesco }
+                famFiliacion: { dni: cleanFamDniFinal, parentesco: newEstudiante.famParentesco }
             };
 
             if (editingEstudiante) {
@@ -705,47 +717,31 @@ export default function AdminPanel() {
             )}
 
             {/* TABS */}
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '2px solid var(--color-border)', paddingBottom: '1rem' }}>
-                <button
-                    className={`btn ${activeTab === 'docentes' ? 'btn-primary' : 'btn-outline'}`}
-                    onClick={() => setActiveTab('docentes')}
-                >
-                    <Users size={18} /> Base Plantilla Docentes / Adm
-                </button>
-                <button
-                    className={`btn ${activeTab === 'familias' ? 'btn-primary' : 'btn-outline'}`}
-                    onClick={() => setActiveTab('familias')}
-                >
-                    <User size={18} /> Gestión de Familias
-                </button>
-                <button
-                    className={`btn ${activeTab === 'estudiantes' ? 'btn-primary' : 'btn-outline'}`}
-                    onClick={() => setActiveTab('estudiantes')}
-                >
-                    <GraduationCap size={18} /> Gestión de Estudiantes / Ciclos
-                </button>
-                <button
-                    className={`btn ${activeTab === 'actividad' ? 'btn-primary' : 'btn-outline'}`}
-                    onClick={() => { setActiveTab('actividad'); fetchLogs(); }}
-                >
-                    <Activity size={18} /> Registro de Movimientos
-                </button>
-                <button
-                    className={`btn ${activeTab === 'informes_c' ? 'btn-primary' : 'btn-outline'}`}
-                    onClick={() => setActiveTab('informes_c')}
-                >
-                    <FileText size={18} /> Informes de Calificación
-                </button>
-                <button
-                    className={`btn ${activeTab === 'config' ? 'btn-primary' : 'btn-outline'}`}
-                    onClick={() => setActiveTab('config')}
-                >
-                    <Settings size={18} /> Configuración / Acceso
-                </button>
+            <div className="tab-bar" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '2px solid var(--color-border)', paddingBottom: '0.75rem', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+                {[
+                    { id: 'docentes', icon: <Users size={18} />, label: 'Docentes' },
+                    { id: 'familias', icon: <User size={18} />, label: 'Familias' },
+                    { id: 'estudiantes', icon: <GraduationCap size={18} />, label: 'Estudiantes' },
+                    { id: 'actividad', icon: <Activity size={18} />, label: 'Auditoría' },
+                    { id: 'informes_c', icon: <FileText size={18} />, label: 'Informes' },
+                    { id: 'config', icon: <Settings size={18} />, label: 'Config' },
+                ].map(t => (
+                    <button
+                        key={t.id}
+                        className={`btn ${activeTab === t.id ? 'btn-primary' : 'btn-outline'}`}
+                        style={{ padding: '0.5rem 0.8rem', fontSize: '0.85rem' }}
+                        onClick={() => {
+                            setActiveTab(t.id);
+                            if (t.id === 'actividad') fetchLogs();
+                        }}
+                    >
+                        {t.icon} <span className="no-mobile-label">{t.label}</span>
+                    </button>
+                ))}
             </div>
 
             {activeTab === 'docentes' && (
-                <div className="grid" style={{ gridTemplateColumns: '1fr 2fr', gap: '2rem' }}>
+                <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
                     <div className="card">
                         <h3 className="mb-4 flex items-center gap-2">
                             <UserPlus size={20} />
@@ -888,30 +884,30 @@ export default function AdminPanel() {
                         </div>
                     </div>
 
-                    <div className="card" style={{ overflowX: 'auto' }}>
+                    <div className="table-responsive">
                         <h3 className="mb-4 flex items-center justify-between">
                             Nómina de Docentes / Autoridades
                             <button onClick={fetchDocentes} className="btn"><RefreshCcw size={16} /></button>
                         </h3>
                         {loadingDocentes ? <p>Cargando datos...</p> : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                            <table className="stack-mobile" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                 <thead>
                                     <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Nombre/Roles Activos</th>
-                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>DNI</th>
-                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Email / Cursos</th>
-                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Últ. Conexión</th>
-                                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Admin</th>
+                                        <th style={{ padding: '0.4rem', textAlign: 'left' }}>Nombre/Roles Activos</th>
+                                        <th style={{ padding: '0.4rem', textAlign: 'left' }}>DNI</th>
+                                        <th style={{ padding: '0.4rem', textAlign: 'left' }}>Email / Cursos</th>
+                                        <th style={{ padding: '0.4rem', textAlign: 'left' }}>Últ. Conexión</th>
+                                        <th style={{ padding: '0.4rem', textAlign: 'right' }}>Admin</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {docentes.filter(d => (d.roles || []).some(r => ['docente', 'docente_area', 'administrador', 'equipo_conduccion'].includes(r))).map(d => (
                                         <tr key={d.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                            <td style={{ padding: '0.5rem' }}>
+                                            <td style={{ padding: '0.4rem' }}>
                                                 <div style={{ fontWeight: 600 }}>{d.displayName}</div>
                                                 <div className="flex gap-1 flex-wrap mt-1">
                                                     {(d.roles || (d.role ? [d.role] : ['docente'])).map((rolName, i) => (
-                                                        <span key={i} className={`badge ${['administrador', 'equipo_conduccion'].includes(rolName) ? 'badge-error' : rolName === 'familia' ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.65rem' }}>
+                                                        <span key={i} className={`badge ${['administrador', 'equipo_conduccion'].includes(rolName) ? 'badge-error' : rolName === 'familia' ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.6rem' }}>
                                                             {rolName === 'docente' ? 'Titular'
                                                                 : rolName === 'docente_area' ? `Área`
                                                                     : rolName === 'equipo_conduccion' ? (d.cargo || 'Conducción')
@@ -920,30 +916,32 @@ export default function AdminPanel() {
                                                     ))}
                                                 </div>
                                             </td>
-                                            <td style={{ padding: '0.5rem' }}>{d.dni}</td>
-                                            <td style={{ padding: '0.5rem' }}>
-                                                <div>{d.email}</div>
-                                                <div style={{ color: 'var(--color-primary)', fontWeight: 'bold', fontSize: '0.75rem' }}>{d.cursosAsignados?.join(', ')}</div>
+                                            <td style={{ padding: '0.4rem' }}>{d.dni}</td>
+                                            <td style={{ padding: '0.4rem' }}>
+                                                <div style={{ color: 'var(--color-primary)', fontWeight: 'bold', fontSize: '0.7rem' }}>{d.cursosAsignados?.join(', ')}</div>
+                                                {d.roles?.includes('familia') && (
+                                                    <div style={{ color: 'var(--color-success)', fontSize: '0.7rem' }}>Hijos: {Array.isArray(d.hijosDnis) ? d.hijosDnis.join(', ') : d.hijosDnis}</div>
+                                                )}
                                             </td>
-                                            <td style={{ padding: '0.5rem', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                                            <td style={{ padding: '0.4rem', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
                                                 {formatLastLogin(d.lastLogin)}
                                             </td>
-                                            <td style={{ padding: '0.5rem', textAlign: 'right' }}>
-                                                <button onClick={() => handleEditDocente(d)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', marginRight: '0.5rem' }} title="Editar">
-                                                    <Edit size={16} />
+                                            <td style={{ padding: '0.4rem', textAlign: 'right' }}>
+                                                <button onClick={() => handleEditDocente(d)} className="btn btn-outline" style={{ padding: '0.2rem 0.4rem', marginRight: '0.25rem' }} title="Editar">
+                                                    <Edit size={14} />
                                                 </button>
                                                 <button
                                                     onClick={(evt) => { evt.stopPropagation(); handleDeleteDocente(d.id, d.displayName); }}
                                                     className="btn btn-outline"
-                                                    style={{ padding: '0.25rem 0.5rem', borderColor: '#fca5a5', color: '#ef4444' }}
+                                                    style={{ padding: '0.2rem 0.4rem', borderColor: '#fca5a5', color: '#ef4444' }}
                                                     title="Eliminar"
                                                 >
-                                                    <Trash2 size={16} />
+                                                    <Trash2 size={14} />
                                                 </button>
                                             </td>
                                         </tr>
                                     ))}
-                                    {docentes.filter(d => (d.roles || []).some(r => ['docente', 'docente_area', 'administrador', 'equipo_conduccion'].includes(r))).length === 0 && <tr><td colSpan="4" style={{ padding: '1rem', textAlign: 'center' }}>No hay usuarios registrados.</td></tr>}
+                                    {docentes.filter(d => (d.roles || []).some(r => ['docente', 'docente_area', 'administrador', 'equipo_conduccion'].includes(r))).length === 0 && <tr><td colSpan="5" style={{ padding: '1rem', textAlign: 'center' }}>No hay usuarios registrados.</td></tr>}
                                 </tbody>
                             </table>
                         )}
@@ -952,7 +950,7 @@ export default function AdminPanel() {
             )}
 
             {activeTab === 'familias' && (
-                <div className="grid" style={{ gridTemplateColumns: '1fr 2fr', gap: '2rem' }}>
+                <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
                     <div className="card">
                         <h3 className="mb-4 flex items-center gap-2">
                             <User size={20} />
@@ -989,43 +987,43 @@ export default function AdminPanel() {
                         </form>
                     </div>
 
-                    <div className="card" style={{ overflowX: 'auto' }}>
+                    <div className="table-responsive">
                         <h3 className="mb-4 flex items-center justify-between">
                             Nómina de Familiares Registrados
                             <button onClick={fetchDocentes} className="btn"><RefreshCcw size={16} /></button>
                         </h3>
                         {loadingDocentes ? <p>Cargando datos...</p> : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                            <table className="stack-mobile" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                 <thead>
                                     <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Nombre y Apellido</th>
-                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>DNI</th>
-                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Email / Hijos vinculados</th>
-                                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Admin</th>
+                                        <th style={{ padding: '0.4rem', textAlign: 'left' }}>Nombre y Apellido</th>
+                                        <th style={{ padding: '0.4rem', textAlign: 'left' }}>DNI</th>
+                                        <th style={{ padding: '0.4rem', textAlign: 'left' }}>Email / Hijos</th>
+                                        <th style={{ padding: '0.4rem', textAlign: 'right' }}>Admin</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {docentes.filter(d => (d.roles || []).length === 1 && d.roles.includes('familia')).map(d => (
                                         <tr key={d.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                            <td style={{ padding: '0.5rem' }}>
+                                            <td style={{ padding: '0.4rem' }}>
                                                 <div style={{ fontWeight: 600 }}>{d.displayName}</div>
-                                                <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>FAMILIA</span>
+                                                <span className="badge badge-success" style={{ fontSize: '0.6rem' }}>FAMILIA</span>
                                             </td>
-                                            <td style={{ padding: '0.5rem' }}>{d.dni}</td>
-                                            <td style={{ padding: '0.5rem' }}>
+                                            <td style={{ padding: '0.4rem' }}>{d.dni}</td>
+                                            <td style={{ padding: '0.4rem' }}>
                                                 <div>{d.email}</div>
-                                                <div style={{ color: 'var(--color-primary)', fontSize: '0.75rem' }}>Hijos: {d.hijosDnis?.join(', ')}</div>
+                                                <div style={{ color: 'var(--color-primary)', fontSize: '0.7rem' }}>Hijos: {d.hijosDnis?.join(', ')}</div>
                                             </td>
-                                            <td style={{ padding: '0.5rem', textAlign: 'right' }}>
-                                                <button onClick={() => handleEditDocente(d)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', marginRight: '0.5rem' }}>
-                                                    <Edit size={16} />
+                                            <td style={{ padding: '0.4rem', textAlign: 'right' }}>
+                                                <button onClick={() => handleEditDocente(d)} className="btn btn-outline" style={{ padding: '0.2rem 0.4rem', marginRight: '0.25rem' }}>
+                                                    <Edit size={14} />
                                                 </button>
                                                 <button
                                                     onClick={(evt) => { evt.stopPropagation(); handleDeleteDocente(d.id, d.displayName); }}
                                                     className="btn btn-outline"
-                                                    style={{ padding: '0.25rem 0.5rem', borderColor: '#fca5a5', color: '#ef4444' }}
+                                                    style={{ padding: '0.2rem 0.4rem', borderColor: '#fca5a5', color: '#ef4444' }}
                                                 >
-                                                    <Trash2 size={16} />
+                                                    <Trash2 size={14} />
                                                 </button>
                                             </td>
                                         </tr>
@@ -1039,7 +1037,7 @@ export default function AdminPanel() {
             )}
 
             {activeTab === 'estudiantes' && (
-                <div className="grid" style={{ gridTemplateColumns: 'minmax(300px, 1fr) 2fr', gap: '2rem' }}>
+                <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
                     <div>
                         <div className="card mb-4" style={{ border: '2px dashed var(--color-primary)' }}>
                             <h3 className="mb-4 flex items-center gap-2"><UploadCloud size={20} color="var(--color-primary)" /> Alta Masiva por Lote / CSV</h3>
@@ -1203,47 +1201,49 @@ export default function AdminPanel() {
                         </div>
 
                         {loadingEstudiantes ? <p>Cargando padrón...</p> : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                                <thead>
-                                    <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                                        <th style={{ padding: '0.5rem', width: '40px', textAlign: 'center' }}>
-                                            <input type="checkbox" checked={selectedEstudiantes.length === filteredEstudiantes.length && filteredEstudiantes.length > 0} onChange={toggleSelectAll} />
-                                        </th>
-                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Nombre Estudiante</th>
-                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>DNI</th>
-                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Curso</th>
-                                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Admin</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredEstudiantes.map(e => (
-                                        <tr key={e.id} style={{ borderBottom: '1px solid var(--color-border)', backgroundColor: selectedEstudiantes.includes(e.id) ? 'rgba(4,75,127,0.05)' : 'transparent' }}>
-                                            <td style={{ padding: '0.5rem', textAlign: 'center' }}>
-                                                <input type="checkbox" checked={selectedEstudiantes.includes(e.id)} onChange={() => toggleStudentSelection(e.id)} />
-                                            </td>
-                                            <td style={{ padding: '0.5rem', fontWeight: 600 }}>{e.nombre}</td>
-                                            <td style={{ padding: '0.5rem' }}>{e.dni}</td>
-                                            <td style={{ padding: '0.5rem' }}>
-                                                <span className="badge badge-success">{getCourseLabel(e.cursoId)}</span>
-                                            </td>
-                                            <td style={{ padding: '0.5rem', textAlign: 'right' }}>
-                                                <button onClick={() => handleEditEstudiante(e)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', marginRight: '0.5rem' }} title="Editar">
-                                                    <Edit size={16} />
-                                                </button>
-                                                <button
-                                                    onClick={(evt) => { evt.stopPropagation(); handleDeleteEstudiante(e.id, e.nombre); }}
-                                                    className="btn btn-outline"
-                                                    style={{ padding: '0.25rem 0.5rem', borderColor: '#fca5a5', color: '#ef4444' }}
-                                                    title="Eliminar"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </td>
+                            <div className="table-responsive">
+                                <table className="stack-mobile" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
+                                            <th style={{ padding: '0.5rem', width: '40px', textAlign: 'center' }}>
+                                                <input type="checkbox" checked={selectedEstudiantes.length === filteredEstudiantes.length && filteredEstudiantes.length > 0} onChange={toggleSelectAll} />
+                                            </th>
+                                            <th style={{ padding: '0.5rem', textAlign: 'left' }}>Nombre Estudiante</th>
+                                            <th style={{ padding: '0.5rem', textAlign: 'left' }}>DNI</th>
+                                            <th style={{ padding: '0.5rem', textAlign: 'left' }}>Curso</th>
+                                            <th style={{ padding: '0.5rem', textAlign: 'right' }}>Admin</th>
                                         </tr>
-                                    ))}
-                                    {filteredEstudiantes.length === 0 && <tr><td colSpan="5" style={{ padding: '1rem', textAlign: 'center' }}>No hay estudiantes que coincidan con la búsqueda.</td></tr>}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        {filteredEstudiantes.map(e => (
+                                            <tr key={e.id} style={{ borderBottom: '1px solid var(--color-border)', backgroundColor: selectedEstudiantes.includes(e.id) ? 'rgba(4,75,127,0.05)' : 'transparent' }}>
+                                                <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                                                    <input type="checkbox" checked={selectedEstudiantes.includes(e.id)} onChange={() => toggleStudentSelection(e.id)} />
+                                                </td>
+                                                <td style={{ padding: '0.5rem', fontWeight: 600 }}>{e.nombre}</td>
+                                                <td style={{ padding: '0.5rem' }}>{e.dni}</td>
+                                                <td style={{ padding: '0.5rem' }}>
+                                                    <span className="badge badge-success">{getCourseLabel(e.cursoId)}</span>
+                                                </td>
+                                                <td style={{ padding: '0.5rem', textAlign: 'right' }}>
+                                                    <button onClick={() => handleEditEstudiante(e)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', marginRight: '0.5rem' }} title="Editar">
+                                                        <Edit size={16} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(evt) => { evt.stopPropagation(); handleDeleteEstudiante(e.id, e.nombre); }}
+                                                        className="btn btn-outline"
+                                                        style={{ padding: '0.25rem 0.5rem', borderColor: '#fca5a5', color: '#ef4444' }}
+                                                        title="Eliminar"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {filteredEstudiantes.length === 0 && <tr><td colSpan="5" style={{ padding: '1rem', textAlign: 'center' }}>No hay estudiantes que coincidan con la búsqueda.</td></tr>}
+                                    </tbody>
+                                </table>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -1372,10 +1372,55 @@ export default function AdminPanel() {
                             <button
                                 onClick={handleClearLogs}
                                 className="btn btn-outline w-full"
-                                style={{ borderColor: '#fca5a5', color: '#ef4444' }}
+                                style={{ borderColor: '#fca5a5', color: '#ef4444', marginBottom: '0.5rem' }}
                                 disabled={savingSettings}
                             >
                                 <Trash2 size={16} /> Vaciar Todo el Historial de Historial de Movimientos
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    setSavingSettings(true);
+                                    let repaired = 0;
+                                    try {
+                                        const parentsSnap = await getDocs(collection(db, 'docentes'));
+                                        const parents = parentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                                        const studentsSnap = await getDocs(collection(db, 'estudiantes'));
+                                        const students = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+                                        for (const p of parents) {
+                                            if (!p.roles?.includes('familia')) continue;
+                                            const cleanParentDni = String(p.dni || '').replace(/[\.\s-]/g, '');
+                                            if (!cleanParentDni) continue;
+
+                                            // Find students linked to this parent DNI
+                                            const myStudents = students.filter(st => {
+                                                const stFamDni = String(st.famFiliacion?.dni || '').replace(/[\.\s-]/g, '');
+                                                return stFamDni === cleanParentDni;
+                                            });
+
+                                            if (myStudents.length > 0) {
+                                                const currentHijos = p.hijosDnis || [];
+                                                const foundHijosDnis = myStudents.map(st => String(st.dni).replace(/[\.\s-]/g, ''));
+                                                const merged = [...new Set([...currentHijos, ...foundHijosDnis])];
+
+                                                if (merged.length !== currentHijos.length) {
+                                                    await updateDoc(doc(db, 'docentes', p.id), { hijosDnis: merged });
+                                                    repaired++;
+                                                }
+                                            }
+                                        }
+                                        showMessage('success', `Sincronización terminada. Se actualizaron ${repaired} perfiles familiares.`);
+                                    } catch (err) {
+                                        console.error(err);
+                                        showMessage('error', 'Error durante la sincronización.');
+                                    } finally {
+                                        setSavingSettings(false);
+                                    }
+                                }}
+                                className="btn btn-outline w-full"
+                                disabled={savingSettings}
+                            >
+                                <Users size={16} /> Sincronizar Vínculos (Alumnos ↔ Padres)
                             </button>
                         </div>
                     </div>

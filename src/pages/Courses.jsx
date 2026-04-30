@@ -73,28 +73,28 @@ export default function Courses() {
                 </div>
             </div>
 
-            <div className="flex" style={{ flexDirection: 'column', gap: '1rem' }}>
+            <div className="courses-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
                 {courses.map(course => (
-                    <Link to={`/cursos/${course.id}`} key={course.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'var(--transition)' }}>
-                        <div className="flex items-center gap-4">
-                            <div style={{ padding: '1rem', backgroundColor: 'var(--color-primary)', color: 'white', borderRadius: 'var(--radius-md)' }}>
-                                <BookOpen size={24} />
+                    <Link to={`/cursos/${course.id}`} key={course.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'var(--transition)', padding: '1rem' }}>
+                        <div className="flex items-center gap-3">
+                            <div style={{ padding: '0.75rem', backgroundColor: 'var(--color-primary)', color: 'white', borderRadius: 'var(--radius-md)' }}>
+                                <BookOpen size={20} />
                             </div>
                             <div>
-                                <h2 style={{ margin: 0, color: 'var(--color-primary)' }}>
+                                <h2 style={{ margin: 0, color: 'var(--color-primary)', fontSize: '1.1rem' }}>
                                     {course.grado}° "{course.seccion}"
                                 </h2>
-                                <div className="flex items-center gap-2 mt-1" style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-                                    <Users size={16} />
-                                    <span>Ver Estudiantes y Calificaciones</span>
+                                <div className="flex items-center gap-2 mt-1" style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>
+                                    <Users size={14} />
+                                    <span>Ver Calificaciones</span>
                                 </div>
                             </div>
                         </div>
-                        <div className="flex flex-col items-end gap-2">
-                            <span className={`badge ${course.turno === 'Mañana' ? 'badge-success' : 'badge-warning'}`}>
-                                Turno {course.turno}
+                        <div className="flex flex-col items-end gap-1">
+                            <span className={`badge ${course.turno === 'Mañana' ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.65rem' }}>
+                                {course.turno}
                             </span>
-                            <span className={`badge ${course.tipo === 'Conceptual' ? 'badge-success' : 'badge-error'}`}>
+                            <span className={`badge ${course.tipo === 'Conceptual' ? 'badge-success' : 'badge-error'}`} style={{ fontSize: '0.65rem' }}>
                                 {course.tipo}
                             </span>
                         </div>

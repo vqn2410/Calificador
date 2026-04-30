@@ -245,37 +245,32 @@ export default function StudentProfile() {
             </div>
 
             {/* HEADER CARD (NO-PRINT) */}
-            <div className="card mb-4 no-print" style={{ backgroundColor: 'var(--color-primary)', color: 'white', border: 'none' }}>
-                <div className="flex justify-between items-center flex-wrap gap-4">
-                    <div className="flex items-center gap-4">
-                        <div style={{ backgroundColor: 'white', color: 'var(--color-primary)', padding: '1.2rem', borderRadius: 'var(--radius-full)' }}>
-                            <User size={36} />
+            <div className="card mb-4 no-print" style={{ backgroundColor: 'var(--color-primary)', color: 'white', border: 'none', padding: '1rem' }}>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div className="flex items-center gap-3">
+                        <div style={{ backgroundColor: 'white', color: 'var(--color-primary)', padding: '0.75rem', borderRadius: 'var(--radius-full)' }}>
+                            <User size={24} />
                         </div>
                         <div>
-                            <h1 style={{ color: 'white', margin: 0, fontSize: '1.5rem' }}>{student?.nombre}</h1>
-                            <p style={{ margin: 0, color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem' }}>DNI: {student?.dni}</p>
-                            <div className="flex gap-2 mt-2">
-                                <span className="badge" style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }}>
-                                    <GraduationCap size={12} style={{ marginRight: '4px' }} /> {getCourseLabel(student?.cursoId || student?.curso)}
-                                </span>
-                            </div>
+                            <h1 style={{ color: 'white', margin: 0, fontSize: '1.2rem' }}>{student?.nombre}</h1>
+                            <p style={{ margin: 0, color: 'rgba(255,255,255,0.8)', fontSize: '0.8rem' }}>DNI: {student?.dni}</p>
                         </div>
                     </div>
 
-                    <button className="btn" style={{ backgroundColor: 'white', color: 'var(--color-primary)' }} onClick={() => window.print()}>
+                    <button className="btn w-full md:w-auto" style={{ backgroundColor: 'white', color: 'var(--color-primary)', fontSize: '0.9rem', padding: '0.6rem 1rem' }} onClick={() => window.print()}>
                         <Download size={18} />
-                        Boletín Digital Oficial
+                        Boletín Oficial
                     </button>
                 </div>
             </div>
 
-            {/* BOLETIN OFICIAL CONTAINER */}
+            {/* BOLETIN OFICIAL CONTAINER (Doble Faz: Hoja 1 Calificaciones, Hoja 2 Observaciones) */}
             <div className="boletin-oficial-container">
                 <style>{`
-                    .boletin-grid {
+                    .boletin-page {
                         display: flex;
                         flex-direction: column;
-                        gap: 1.2rem;
+                        gap: 0.8rem;
                         font-family: sans-serif;
                     }
                     .bol-table {
@@ -288,14 +283,14 @@ export default function StudentProfile() {
                         background-color: #f1f5f9;
                         color: #1e293b;
                         border: 1px solid #cbd5e1;
-                        padding: 8px 4px;
+                        padding: 6px 4px;
                         font-size: 0.7rem;
                         text-transform: uppercase;
                     }
                     .bol-table td {
                         background-color: white;
                         border: 1px solid #cbd5e1;
-                        padding: 6px 4px;
+                        padding: 5px 4px;
                         font-weight: 600;
                         color: #334155;
                     }
@@ -315,9 +310,9 @@ export default function StudentProfile() {
                         background-color: #f8fafc;
                         border: 1px solid #e2e8f0;
                         border-radius: 4px;
-                        min-height: 70px;
+                        min-height: 60px;
                         position: relative;
-                        padding: 1.6rem 0.6rem 0.5rem 0.6rem;
+                        padding: 1.4rem 0.6rem 0.5rem 0.6rem;
                         font-size: 0.75rem;
                         color: #1e293b;
                         line-height: 1.2;
@@ -337,52 +332,85 @@ export default function StudentProfile() {
                         color: #1e293b;
                         font-weight: bold;
                         font-size: 0.8rem;
-                        margin-bottom: 0.5rem;
+                        margin-bottom: 0.3rem;
                         display: flex;
                         justify-content: space-between;
                         border-bottom: 2px solid #1e293b;
                         padding-bottom: 3px;
                     }
+                    @media screen {
+                        .boletin-page {
+                            background-color: white;
+                            padding: 2.5rem;
+                            margin-bottom: 2rem;
+                            border: 1px solid #e2e8f0;
+                            border-radius: 8px;
+                            box-shadow: var(--shadow-sm);
+                            max-width: 800px;
+                            margin-left: auto;
+                            margin-right: auto;
+                        }
+                    }
                     @media print {
                         .boletin-oficial-container { padding: 0 !important; margin: 0 !important; }
                         body { background-color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                         @page { 
-                            margin: 1.2cm; 
+                            margin: 1cm; 
                             size: A4 portrait; 
                         }
                         .no-print { display: none !important; }
                         .obs-block { background-color: #fff !important; border: 1px solid #e2e8f0 !important; }
                         .bol-table th { background-color: #f1f5f9 !important; }
+                        .boletin-page {
+                            padding: 0;
+                            margin: 0;
+                            box-shadow: none;
+                            border: none;
+                            page-break-after: always;
+                            break-after: page;
+                        }
+                        .boletin-page:last-child {
+                            page-break-after: avoid;
+                            break-after: avoid;
+                        }
                     }
                     @media (max-width: 768px) {
                         .obs-container { grid-template-columns: 1fr; }
+                        .boletin-page { padding: 1rem; border-radius: 0; box-shadow: none; border: none; margin-bottom: 1rem; }
+                        .bol-table { font-size: 0.7rem; }
+                        .bol-table th { padding: 4px 2px; font-size: 0.6rem; }
+                        .bol-table td { padding: 4px 2px; }
+                        .bol-table td.area-title { font-size: 0.6rem; padding-left: 4px; }
+                        .header-info { flex-direction: column; gap: 2px; font-size: 0.7rem; }
+                        .print-only img { width: 40px !important; height: 40px !important; }
                     }
                 `}</style>
 
-                {/* MEMBRETE INSTITUCIONAL (PRINT ONLY) */}
-                <div className="print-only" style={{ marginBottom: '1.2rem', borderBottom: '3px double #000', paddingBottom: '0.8rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem' }}>
-                        <img src="https://i.postimg.cc/vBGtNsKg/Whats-App-Image-2026-03-06-at-15-14-14.jpg" alt="Logo Escuela" style={{ width: '75px', height: '75px', objectFit: 'contain' }} />
-                        <div style={{ flex: 1 }}>
-                            <h3 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 400, textTransform: 'uppercase' }}>Dirección General de Cultura y Educación</h3>
-                            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>Escuela Primaria N°6 "Rafael Obligado"</h3>
-                            <p style={{ margin: '1px 0 0 0', fontSize: '0.75rem', fontStyle: 'italic' }}>Provincia de Buenos Aires - Ciclo Lectivo {currentYear}</p>
-                        </div>
-                        <div style={{ textAlign: 'center' }}>
-                            <div style={{ border: '1px solid #000', padding: '5px 10px', fontSize: '0.9rem', fontWeight: 800 }}>
-                                {getCourseLabel(student?.cursoId || student?.curso)}
+                {/* HOJA 1: CALIFICACIONES */}
+                <div className="boletin-page">
+                    {/* MEMBRETE INSTITUCIONAL (PRINT ONLY) */}
+                    <div className="print-only" style={{ marginBottom: '0.8rem', borderBottom: '3px double #000', paddingBottom: '0.6rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem' }}>
+                            <img src="https://i.postimg.cc/vBGtNsKg/Whats-App-Image-2026-03-06-at-15-14-14.jpg" alt="Logo Escuela" style={{ width: '60px', height: '60px', objectFit: 'contain' }} />
+                            <div style={{ flex: 1 }}>
+                                <h3 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 400, textTransform: 'uppercase' }}>Dirección General de Cultura y Educación</h3>
+                                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Escuela Primaria N°6 "Rafael Obligado"</h3>
+                                <p style={{ margin: '1px 0 0 0', fontSize: '0.7rem', fontStyle: 'italic' }}>Provincia de Buenos Aires - Ciclo Lectivo {currentYear}</p>
+                            </div>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ border: '1px solid #000', padding: '5px 10px', fontSize: '0.85rem', fontWeight: 800 }}>
+                                    {getCourseLabel(student?.cursoId || student?.curso)}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div className="print-only mb-6" style={{ textAlign: 'center' }}>
-                    <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, border: '2px solid #000', display: 'inline-block', padding: '4px 20px' }}>
-                        BOLETÍN DE TRAYECTORIA ESCOLAR
-                    </h1>
-                </div>
+                    <div className="print-only" style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
+                        <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, border: '2px solid #000', display: 'inline-block', padding: '4px 20px' }}>
+                            BOLETÍN DE TRAYECTORIA ESCOLAR
+                        </h1>
+                    </div>
 
-                <div className="boletin-grid">
                     {/* ENCABEZADO DE DATOS */}
                     <div>
                         <div className="header-info">
@@ -434,13 +462,45 @@ export default function StudentProfile() {
                         </table>
                     </div>
 
+                    {/* REFERENCIAS */}
+                    <div style={{ marginTop: '5px' }}>
+                        <div style={{ fontSize: '0.6rem', fontWeight: 800, marginBottom: '2px', textAlign: 'center' }}>Simbología: S (Sobresaliente), MB (Muy Bueno), B (Bueno), R (Regular), D (Desaprobado)</div>
+                    </div>
+                </div>
+
+                {/* HOJA 2: OBSERVACIONES Y FIRMAS */}
+                <div className="boletin-page">
+                    {/* MEMBRETE INSTITUCIONAL (REPETIDO) */}
+                    <div className="print-only" style={{ marginBottom: '0.8rem', borderBottom: '3px double #000', paddingBottom: '0.6rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem' }}>
+                            <img src="https://i.postimg.cc/vBGtNsKg/Whats-App-Image-2026-03-06-at-15-14-14.jpg" alt="Logo Escuela" style={{ width: '60px', height: '60px', objectFit: 'contain' }} />
+                            <div style={{ flex: 1 }}>
+                                <h3 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 400, textTransform: 'uppercase' }}>Dirección General de Cultura y Educación</h3>
+                                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Escuela Primaria N°6 "Rafael Obligado"</h3>
+                                <p style={{ margin: '1px 0 0 0', fontSize: '0.7rem', fontStyle: 'italic' }}>Provincia de Buenos Aires - Ciclo Lectivo {currentYear}</p>
+                            </div>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ border: '1px solid #000', padding: '5px 10px', fontSize: '0.85rem', fontWeight: 800 }}>
+                                    {getCourseLabel(student?.cursoId || student?.curso)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="print-only" style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
+                        <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, border: '2px solid #000', display: 'inline-block', padding: '4px 20px' }}>
+                            OBSERVACIONES PEDAGÓGICAS
+                        </h1>
+                    </div>
+
+                    <div className="header-info">
+                        <span>ALUMNO: {student?.nombre.toUpperCase()}</span>
+                        <span>DNI: {student?.dni}</span>
+                        <span>ESTADO: REGULAR</span>
+                    </div>
+
                     {/* SECCIÓN DE OBSERVACIONES */}
                     <div>
-                        <div style={{ textAlign: 'center', marginBottom: '0.4rem' }}>
-                            <span style={{ fontWeight: 800, fontSize: '0.75rem', textTransform: 'uppercase', textDecoration: 'underline' }}>
-                                Observaciones Pedagógicas
-                            </span>
-                        </div>
                         <div className="obs-container">
                             <div className="obs-block">
                                 <span className="obs-badge">1° INFORME</span>
@@ -461,12 +521,7 @@ export default function StudentProfile() {
                         </div>
                     </div>
 
-                    {/* REFERENCIAS */}
-                    <div>
-                        <div style={{ fontSize: '0.6rem', fontWeight: 800, marginBottom: '2px', textAlign: 'center' }}>Simbología: S (Sobresaliente), MB (Muy Bueno), B (Bueno), R (Regular), D (Desaprobado)</div>
-                    </div>
-
-                    {/* FIRMAS / NOTIFICACIÓN DIGITAL */}
+                    {/* FIRMAS / NOTIFICACIÓN DIGITAL (MOVIDO A HOJA 2) */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginTop: 'auto' }}>
                         {['1er Trimestre', '2do Trimestre', '3er Trimestre'].map(trim => {
                             const firstView = [...(student.vistasFamilia || [])]

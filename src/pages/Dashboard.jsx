@@ -9,11 +9,9 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recha
 const COLORS = ['#044b7f', '#f8981d', '#0d6db3', '#008f5e', '#ef4444', '#f59e0b', '#10b981', '#64748b'];
 
 export default function Dashboard() {
-    const { currentUser } = useAuth();
+    const { currentUser, activeRole } = useAuth();
 
-    const rolesArr = currentUser?.roles || [];
-    const isFamilyOnly = rolesArr.includes('familia') && !rolesArr.some(r => ['docente', 'docente_area', 'administrador', 'equipo_conduccion'].includes(r));
-    if (isFamilyOnly) {
+    if (activeRole === 'familia') {
         return <Navigate to="/mis-hijos" replace />;
     }
 
@@ -25,7 +23,7 @@ export default function Dashboard() {
     const [chartData, setChartData] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    const isAdmin = rolesArr.includes('administrador') || rolesArr.includes('equipo_conduccion');
+    const isAdmin = activeRole === 'administrador' || activeRole === 'equipo_conduccion';
     const myCourses = currentUser?.cursosAsignados || [];
 
     useEffect(() => {
@@ -38,6 +36,16 @@ export default function Dashboard() {
                     qStudents = collection(db, 'estudiantes');
                 } else if (myCourses.length > 0) {
                     qStudents = query(collection(db, 'estudiantes'), where('cursoId', 'in', myCourses));
+                } else {
+                    // No courses assigned, fetch nothing but handle state
+                    setStats([
+                        { label: 'Mis Cursos', value: '0', icon: <Users size={24} color="var(--color-primary)" /> },
+                        { label: 'Mis Estudiantes', value: '0', icon: <GraduationCap size={24} color="var(--color-secondary)" /> },
+                        { label: 'Docentes en Plataforma', value: '---', icon: <BookOpen size={24} color="var(--color-accent)" /> }
+                    ]);
+                    setChartData([]);
+                    setLoading(false);
+                    return;
                 }
 
                 let stDocs = [];
@@ -54,7 +62,7 @@ export default function Dashboard() {
                 }
 
                 setStats([
-                    { label: isAdmin ? 'Cursos Totales (aprox)' : 'Mis Cursos', value: isAdmin ? '12' : myCourses.length.toString(), icon: <Users size={24} color="var(--color-primary)" /> },
+                    { label: isAdmin ? 'Cursos Totales (aprox)' : 'Mis Cursos', value: isAdmin ? '24' : myCourses.length.toString(), icon: <Users size={24} color="var(--color-primary)" /> },
                     { label: isAdmin ? 'Estudiantes Totales' : 'Mis Estudiantes', value: stDocs.length.toString(), icon: <GraduationCap size={24} color="var(--color-secondary)" /> },
                     { label: 'Docentes en Plataforma', value: isAdmin ? docDocs.length.toString() : '---', icon: <BookOpen size={24} color="var(--color-accent)" /> }
                 ]);
@@ -86,46 +94,73 @@ export default function Dashboard() {
 
     return (
         <div className="container">
-            <h1 className="mb-4">Dashboard</h1>
-            <p className="mb-4" style={{ fontSize: '1.2rem' }}>¡Hola, {currentUser?.displayName || 'Docente'}! Este es el resumen de tu ciclo lectivo.</p>
+            <div className="flex justify-between items-center mb-6">
+                <div>
+                    <h1 className="mb-1">Dashboard</h1>
+                    <p style={{ fontSize: '1.1rem', margin: 0 }}>¡Hola, {currentUser?.displayName || 'Docente'}! Este es el resumen de tu ciclo lectivo.</p>
+                </div>
+                {currentUser?.roles?.length > 1 && (
+                    <div className="flex flex-col items-end gap-2 no-print">
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Perfil Activo: {activeRole.replace('_', ' ')}</span>
+                        <div className="flex gap-2">
+                            {currentUser.roles.map(r => r !== activeRole && (
+                                <button 
+                                    key={r} 
+                                    onClick={() => switchRole(r)}
+                                    className="btn"
+                                    style={{ 
+                                        padding: '0.4rem 0.8rem', 
+                                        fontSize: '0.75rem', 
+                                        backgroundColor: '#ef4444', 
+                                        color: 'white',
+                                        boxShadow: '0 4px 8px rgba(239, 68, 68, 0.3)'
+                                    }}
+                                >
+                                    CAMBIAR A {r.replace('_', ' ').toUpperCase()}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
 
-            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+            <div className="grid stats-grid" style={{ gap: '1rem', marginBottom: '2rem' }}>
                 {stats.map((stat, i) => (
-                    <div key={i} className="card flex items-center gap-4">
-                        <div style={{ padding: '1rem', backgroundColor: 'var(--color-background)', borderRadius: 'var(--radius-lg)' }}>
+                    <div key={i} className="card flex items-center gap-3" style={{ padding: '0.75rem' }}>
+                        <div style={{ padding: '0.75rem', backgroundColor: 'var(--color-background)', borderRadius: 'var(--radius-md)' }}>
                             {stat.icon}
                         </div>
                         <div>
-                            <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: 500 }}>{stat.label}</p>
-                            <h2 style={{ margin: 0, fontSize: '1.75rem', color: 'var(--color-text-main)' }}>{stat.value}</h2>
+                            <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: 500 }}>{stat.label}</p>
+                            <h2 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--color-text-main)' }}>{stat.value}</h2>
                         </div>
                     </div>
                 ))}
             </div>
 
-            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem' }}>
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
                 <div className="card">
-                    <h3 className="flex items-center gap-2 mb-4">
+                    <h3 className="flex items-center gap-2 mb-4" style={{ fontSize: '1.1rem' }}>
                         <BookOpen size={20} color="var(--color-primary)" />
-                        Próximos Cierres Trimestrales
+                        Próximos Cierres
                     </h3>
                     <ul style={{ listStyle: 'none', padding: 0 }}>
                         {['1er Trimestre: 31 de Mayo', '2do Trimestre: 31 de Agosto', '3er Trimestre: 30 de Noviembre'].map((t, idx) => (
-                            <li key={idx} style={{ padding: '1rem 0', borderBottom: idx !== 2 ? '1px solid var(--color-border)' : 'none', display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ fontWeight: 500 }}>{t.split(':')[0]}</span>
-                                <span className={`badge ${idx === 0 ? 'badge-warning' : 'badge-success'}`}>{t.split(':')[1]}</span>
+                            <li key={idx} style={{ padding: '0.75rem 0', borderBottom: idx !== 2 ? '1px solid var(--color-border)' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontWeight: 500, fontSize: '0.85rem' }}>{t.split(':')[0]}</span>
+                                <span className={`badge ${idx === 0 ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: '0.65rem' }}>{t.split(':')[1]}</span>
                             </li>
                         ))}
                     </ul>
 
                     {myCourses.length > 0 && (
-                        <div style={{ marginTop: '2rem' }}>
-                            <h4 style={{ fontSize: '0.9rem', marginBottom: '1rem', color: 'var(--color-text-muted)' }}>Mis Accesos Rápidos</h4>
-                            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: '0.5rem' }}>
+                        <div style={{ marginTop: '1.5rem' }}>
+                            <h4 style={{ fontSize: '0.8rem', marginBottom: '1rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Mis Accesos Rápidos</h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
                                 {myCourses.map((c, idx) => (
-                                    <Link key={idx} to={`/cursos/${c}`} className="btn btn-outline" style={{ display: 'flex', flexDirection: 'column', padding: '0.5rem' }}>
-                                        <span style={{ fontWeight: 700, fontSize: '1rem' }}>{c.split('-')[0]}</span>
-                                        <span style={{ fontSize: '0.65rem' }}>{c.split('-')[1]}</span>
+                                    <Link key={idx} to={`/cursos/${c}`} className="btn btn-outline" style={{ display: 'flex', flexDirection: 'column', padding: '0.4rem', border: '1px solid var(--color-border)' }}>
+                                        <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{c.split('-')[0]}</span>
+                                        <span style={{ fontSize: '0.6rem', opacity: 0.7 }}>{c.split('-')[1]}</span>
                                     </Link>
                                 ))}
                             </div>
@@ -134,9 +169,9 @@ export default function Dashboard() {
                 </div>
 
                 <div className="card">
-                    <h3 className="flex items-center gap-2 mb-4">
+                    <h3 className="flex items-center gap-2 mb-4" style={{ fontSize: '1.1rem' }}>
                         <Users size={20} color="var(--color-primary)" />
-                        Distribución de Estudiantes
+                        Estudiantes
                     </h3>
                     {loading ? <p>Cargando gráfico...</p> : chartData.length > 0 ? (
                         <div style={{ width: '100%', height: 300 }}>

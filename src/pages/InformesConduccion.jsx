@@ -223,7 +223,7 @@ export default function InformesConduccion() {
                 {/* ════════════════════════════════════════════
                     TABLA PRINCIPAL
                 ════════════════════════════════════════════ */}
-                <div style={{ overflowX: 'auto', marginBottom: '1.5rem' }}>
+                <div className="table-responsive" style={{ marginBottom: '1.5rem' }}>
                     <table style={{ borderCollapse: 'collapse', tableLayout: 'fixed', width: '100%', fontSize: '0.65rem' }}>
                         <colgroup>
                             <col style={{ width: 54 }} />

@@ -625,11 +625,13 @@ p {
 
 @media print {
   @page {
-    size: A4 portrait;
-    margin: 1cm;
+    margin: 0;
   }
 
   .app-sidebar,
+  .mobile-header,
+  .app-footer,
+  .mobile-bottom-nav,
   button:not(.btn-secondary),
   .no-print {
     display: none !important;
@@ -715,5 +717,98 @@ p {
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
+  }
+}
+
+/* ── Mobile Optimization Utilities ── */
+@media (max-width: 768px) {
+  .container {
+    padding: 0 1rem;
+  }
+  
+  .card {
+    padding: 1rem;
+    border-radius: var(--radius-md);
+  }
+  
+  h1 {
+    font-size: 1.75rem;
+  }
+  
+  .no-print {
+    margin-bottom: 1rem;
+  }
+  
+  .tab-bar {
+    gap: 0.25rem !important;
+  }
+  
+  .tab-bar .btn {
+    padding: 0.4rem 0.6rem !important;
+    font-size: 0.75rem !important;
+  }
+
+  .no-mobile-label {
+    display: none;
+  }
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 1rem;
+}
+
+.table-responsive table {
+  min-width: 600px;
+}
+
+/* Specific fix for conduction report on print/mobile */
+.table-responsive.conduccion table {
+  min-width: 800px;
+}
+
+/* Stackable Table for Mobile */
+@media (max-width: 768px) {
+  .stack-mobile, 
+  .stack-mobile thead, 
+  .stack-mobile tbody, 
+  .stack-mobile tr, 
+  .stack-mobile th, 
+  .stack-mobile td {
+    display: block !important;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  .stack-mobile thead {
+    display: none !important;
+  }
+
+  .stack-mobile tr {
+    margin-bottom: 1rem !important;
+    padding: 1rem !important;
+    background: var(--color-surface) !important;
+    border-radius: var(--radius-md) !important;
+    border: 1px solid var(--color-border) !important;
+    box-shadow: var(--shadow-sm) !important;
+    height: auto !important;
+  }
+
+  .stack-mobile td {
+    padding: 0.5rem 0 !important;
+    text-align: left !important;
+    border: none !important;
+    min-width: unset !important;
+    width: 100% !important;
+  }
+  
+  .stack-mobile td:last-child {
+    border-top: 1px solid var(--color-border) !important;
+    margin-top: 0.5rem;
+    padding-top: 1rem !important;
+    display: flex;
+    justify-content: flex-end;
   }
 }

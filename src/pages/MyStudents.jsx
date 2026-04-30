@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { collection, query, getDocs, where, orderBy } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import {
@@ -29,6 +30,7 @@ import {
 
 export default function MyStudents() {
     const navigate = useNavigate();
+    const { currentUser, activeRole } = useAuth();
     const [students, setStudents] = useState([]);
     const [courses, setCourses] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -43,13 +45,31 @@ export default function MyStudents() {
         const fetchData = async () => {
             setLoading(true);
             try {
+                const isAdmin = ['administrador', 'equipo_conduccion'].includes(activeRole);
+                const assignedCourses = currentUser?.cursosAsignados || [];
+
                 // Fetch Courses
                 const coursesSnap = await getDocs(collection(db, 'cursos'));
-                const coursesData = coursesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                let coursesData = coursesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                if (!isAdmin) {
+                    coursesData = coursesData.filter(c => assignedCourses.includes(c.id));
+                }
                 setCourses(coursesData.sort((a, b) => a.id.localeCompare(b.id)));
 
                 // Fetch Students
-                const studentsSnap = await getDocs(query(collection(db, 'estudiantes'), orderBy('nombre', 'asc')));
+                let q;
+                if (isAdmin) {
+                    q = query(collection(db, 'estudiantes'), orderBy('nombre', 'asc'));
+                } else if (assignedCourses.length > 0) {
+                    q = query(collection(db, 'estudiantes'), where('cursoId', 'in', assignedCourses), orderBy('nombre', 'asc'));
+                } else {
+                    setStudents([]);
+                    setLoading(false);
+                    return;
+                }
+
+                const studentsSnap = await getDocs(q);
                 const studentsData = studentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 setStudents(studentsData);
             } catch (error) {
@@ -59,7 +79,7 @@ export default function MyStudents() {
             }
         };
         fetchData();
-    }, []);
+    }, [activeRole, currentUser]);
 
     const filteredStudents = students.filter(st => {
         const matchesCourse = selectedCourse === 'all' || st.cursoId === selectedCourse;
@@ -124,91 +144,83 @@ export default function MyStudents() {
                 </div>
             </div>
 
-            <div className="card mb-6" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                <div className="flex flex-wrap gap-4 items-center">
-                    <div className="flex-1 min-w-[300px] relative">
+            <div className="card mb-6" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: '1rem' }}>
+                <div className="flex flex-col md:flex-row gap-4 items-center">
+                    <div className="w-full relative">
                         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#64748b' }} />
                         <input
                             type="text"
                             className="input-field mb-0 pl-10"
-                            placeholder="Buscar por nombre o DNI..."
+                            placeholder="Buscar alumno..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="w-full flex items-center gap-2">
                         <Filter size={18} style={{ color: '#64748b' }} />
                         <select
-                            className="input-field mb-0"
-                            style={{ width: 'auto' }}
+                            className="input-field mb-0 w-full"
                             value={selectedCourse}
                             onChange={(e) => setSelectedCourse(e.target.value)}
                         >
                             <option value="all">Todos los cursos</option>
                             {courses.map(c => (
-                                <option key={c.id} value={c.id}>{c.grado}° "{c.seccion}" ({c.id.split('-')[1]})</option>
+                                <option key={c.id} value={c.id}>{c.grado}° "{c.seccion}"</option>
                             ))}
                         </select>
                     </div>
                 </div>
             </div>
 
-            <div className="table-responsive" style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
-                <table className="w-full" style={{ borderCollapse: 'collapse', textAlign: 'left', minWidth: 480 }}>
+            <div className="table-responsive">
+                <table className="stack-mobile w-full" style={{ borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
                     <thead>
                         <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '2px solid #e2e8f0' }}>
-                            <th style={{ padding: '1rem' }}>Estudiante</th>
-                            <th style={{ padding: '1rem' }}>Curso</th>
-                            <th style={{ padding: '1rem' }}>DNI</th>
-                            <th style={{ padding: '1rem', textAlign: 'right' }}>Acciones</th>
+                            <th style={{ padding: '0.75rem', fontSize: '0.8rem' }}>Estudiante</th>
+                            <th style={{ padding: '0.75rem', fontSize: '0.8rem' }}>Curso</th>
+                            <th style={{ padding: '0.75rem', fontSize: '0.8rem' }}>DNI</th>
+                            <th style={{ padding: '0.75rem', fontSize: '0.8rem', textAlign: 'right' }}>Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
                         {filteredStudents.length === 0 ? (
                             <tr>
                                 <td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
-                                    No se encontraron estudiantes con los criterios de búsqueda.
+                                    No se encontraron resultados.
                                 </td>
                             </tr>
                         ) : (
                             filteredStudents.map(st => (
                                 <tr key={st.id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }} className="hover:bg-slate-50">
-                                    <td style={{ padding: '1rem' }}>
-                                        <div className="flex items-center gap-3">
-                                            <div style={{ padding: '0.5rem', backgroundColor: '#e2e8f0', borderRadius: '50%', color: 'var(--color-primary)' }}>
-                                                <User size={18} />
+                                    <td style={{ padding: '0.75rem' }}>
+                                        <div className="flex items-center gap-2">
+                                            <div style={{ padding: '0.4rem', backgroundColor: '#e2e8f0', borderRadius: '50%', color: 'var(--color-primary)' }}>
+                                                <User size={14} />
                                             </div>
-                                            <div>
-                                                <div style={{ fontWeight: 600 }}>{st.nombre}</div>
-                                                {st.famFiliacion && (
-                                                    <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                                                        {st.famFiliacion.parentesco}: {st.famFiliacion.dni}
-                                                    </div>
-                                                )}
-                                            </div>
+                                            <div style={{ fontWeight: 600, fontSize: '0.85rem', lineHeight: 1.2 }}>{st.nombre}</div>
                                         </div>
                                     </td>
-                                    <td style={{ padding: '1rem' }}>
-                                        <span className="badge" style={{ backgroundColor: '#f1f5f9', color: '#1e293b' }}>
-                                            {st.cursoId || 'Sin asignar'}
+                                    <td style={{ padding: '0.75rem' }}>
+                                        <span className="badge" style={{ backgroundColor: '#f1f5f9', color: '#1e293b', fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}>
+                                            {st.cursoId?.replace('CURSO-', '') || '---'}
                                         </span>
                                     </td>
-                                    <td style={{ padding: '1rem', color: '#64748b' }}>{st.dni}</td>
-                                    <td style={{ padding: '1rem', textAlign: 'right' }}>
-                                        <div className="flex justify-end gap-2">
+                                    <td style={{ padding: '0.75rem', color: '#64748b', fontSize: '0.8rem' }}>{st.dni}</td>
+                                    <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                                        <div className="flex justify-end gap-1">
                                             <button
                                                 className="btn btn-outline"
-                                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                                                style={{ padding: '0.3rem 0.5rem', fontSize: '0.7rem' }}
                                                 onClick={() => handleHistoryClick(st)}
                                             >
-                                                <TrendingUp size={14} className="mr-1" /> Historial
+                                                <TrendingUp size={12} />
                                             </button>
                                             <button
                                                 className="btn"
-                                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                                                style={{ padding: '0.3rem 0.5rem', fontSize: '0.7rem' }}
                                                 onClick={() => navigate(`/estudiantes/${st.id}`)}
                                             >
-                                                <BookOpen size={14} className="mr-1" /> Boletín Digital
+                                                <BookOpen size={12} />
                                             </button>
                                         </div>
                                     </td>

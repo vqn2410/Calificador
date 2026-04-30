@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { collection, query, where, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
@@ -141,6 +141,51 @@ export default function CourseDetails() {
         }));
     };
 
+    const formatGrade = (grade) => {
+        if (!grade) return '-';
+        const map = {
+            'Sobresaliente': 'S',
+            'Muy bueno': 'MB',
+            'Bueno': 'B',
+            'Regular': 'R',
+            'Desaprobado': 'D'
+        };
+        return map[grade] || grade;
+    };
+
+    const renderGradeInput = (st, sub) => {
+        if (isConceptual) {
+            return (
+                <select
+                    className="input-field sheet-input"
+                    style={{ minWidth: '45px', padding: '0.3rem !important', fontSize: '0.8rem', cursor: (!allowEdit || (isStrictAreaTeacher && currentUser?.materiaEspecial !== sub)) ? 'not-allowed' : 'pointer' }}
+                    value={grades[st.id]?.[sub] || ''}
+                    onChange={(e) => handleGradeChange(st.id, sub, e.target.value)}
+                    disabled={!allowEdit || (isStrictAreaTeacher && currentUser?.materiaEspecial !== sub)}
+                >
+                    <option value="">-</option>
+                    <option value="Sobresaliente">S</option>
+                    <option value="Muy bueno">MB</option>
+                    <option value="Bueno">B</option>
+                    <option value="Regular">R</option>
+                    <option value="Desaprobado">D</option>
+                </select>
+            );
+        } else {
+            return (
+                <input
+                    className="input-field sheet-input"
+                    type="number" min="1" max="10"
+                    placeholder="-"
+                    style={{ width: '40px', padding: '0.3rem !important', fontSize: '0.8rem', cursor: (!allowEdit || (isStrictAreaTeacher && currentUser?.materiaEspecial !== sub)) ? 'not-allowed' : 'text' }}
+                    value={grades[st.id]?.[sub] || ''}
+                    onChange={(e) => handleGradeChange(st.id, sub, e.target.value)}
+                    disabled={!allowEdit || (isStrictAreaTeacher && currentUser?.materiaEspecial !== sub)}
+                />
+            );
+        }
+    };
+
     const handleSaveGrades = async () => {
         setSaving(true);
         try {
@@ -193,42 +238,96 @@ export default function CourseDetails() {
 
     return (
         <div className="container" style={{ paddingBottom: '3rem' }}>
-            <div className="mb-4 flex flex-wrap justify-between items-center gap-4 no-print" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
+            <div className="mb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 no-print" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
                 <div>
-                    <h1 className="flex items-center gap-2">
-                        <PenTool color="var(--color-primary)" />
-                        Asignación de Calificaciones
+                    <h1 className="flex items-center gap-2" style={{ fontSize: '1.25rem' }}>
+                        <PenTool size={20} color="var(--color-primary)" />
+                        Carga de Notas
                     </h1>
-                    <p style={{ margin: 0 }}>Curso: <strong>{grado}° "{seccion}"</strong> - Sistema: {isConceptual ? 'Conceptual' : 'Numérico'}</p>
+                    <p style={{ margin: 0, fontSize: '0.85rem' }}>Curso: <strong>{grado}° "{seccion}"</strong></p>
                     {!allowEdit && (
-                        <div className="badge badge-warning" style={{ marginTop: '0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <Lock size={14} /> MODO LECTURA: La carga de notas está bloqueada por administración.
+                        <div className="badge badge-warning" style={{ marginTop: '0.4rem', fontSize: '0.65rem' }}>
+                            <Lock size={12} /> CARGA BLOQUEADA
                         </div>
                     )}
                 </div>
 
-                <div className="flex gap-4">
+                <div className="w-full md:w-auto flex flex-wrap gap-2">
                     <select
-                        className="input-field mb-0"
+                        className="input-field mb-0 flex-1"
                         value={trimestre}
                         onChange={(e) => setTrimestre(e.target.value)}
-                        style={{ width: 'auto' }}
+                        style={{ width: 'auto', fontSize: '0.85rem', padding: '0.5rem' }}
                     >
-                        <option value="1er Trimestre">1er Trimestre</option>
-                        <option value="2do Trimestre">2do Trimestre</option>
-                        <option value="3er Trimestre">3er Trimestre</option>
-                        <option value="Período Extendido">Período Extendido</option>
-                        <option value="Informe Final">Informe Final</option>
+                        <option value="1er Trimestre">1er Trim.</option>
+                        <option value="2do Trimestre">2do Trim.</option>
+                        <option value="3er Trimestre">3er Trim.</option>
+                        <option value="Período Extendido">Extendido</option>
+                        <option value="Informe Final">Final</option>
                     </select>
 
-                    <button className="btn btn-outline" onClick={() => window.print()}>
-                        <ClipboardList size={18} />
-                        Descargar Planilla
+                    <button className="btn btn-outline flex-1" onClick={() => window.print()} style={{ fontSize: '0.85rem', padding: '0.5rem' }}>
+                        <ClipboardList size={16} />
+                        Planilla
                     </button>
                 </div>
             </div>
 
             <style>{`
+                @page {
+                    margin: 1cm;
+                }
+
+                /* Specific named page for wide reports like "Carga de Notas" - OFICIO */
+                @page landscape-page {
+                    size: legal landscape;
+                    margin: 0;
+                }
+
+                .landscape-print {
+                    page: landscape-page;
+                    width: 100%;
+                    padding: 0.5cm;
+                }
+
+                @media print {
+                    body { margin: 0; }
+                    .container { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+                    
+                    .print-table {
+                        table-layout: fixed;
+                        width: 100% !important;
+                        border: 1px solid black !important;
+                    }
+                    .print-table th, .print-table td {
+                        padding: 1px !important;
+                        font-size: 0.6rem !important;
+                        overflow: hidden;
+                        border: 1px solid #000 !important;
+                    }
+                    .vertical-text {
+                        height: 90px !important;
+                    }
+                    .student-name-cell {
+                        width: 180px !important;
+                        font-size: 0.75rem !important;
+                        white-space: nowrap !important;
+                        overflow: visible !important;
+                        text-overflow: clip !important;
+                    }
+                    .sheet-input {
+                        width: 100% !important;
+                        min-width: unset !important;
+                        padding: 0 !important;
+                        font-size: 0.6rem !important;
+                        height: auto !important;
+                        border: none !important;
+                    }
+                    .obs-column {
+                        width: auto !important;
+                    }
+                }
+
                 .sheet-input {
                     text-align: center !important;
                     padding: 0.5rem !important;
@@ -259,20 +358,23 @@ export default function CourseDetails() {
                 }
             `}</style>
 
-            <div className="card" style={{ padding: '0' }}>
+            <div id="printable-area" className="card landscape-print" style={{ padding: '0' }}>
                 <div className="print-only" style={{ border: '2px solid black', borderBottom: 'none', padding: '10px' }}>
+                    <div style={{ textAlign: 'center', fontSize: '0.65rem', marginBottom: '5px', fontWeight: 'bold', borderBottom: '1px solid black', paddingBottom: '3px' }}>
+                        Sistema de Calificaciones · E.P N° 6 "Rafael Obligado"
+                    </div>
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-4" style={{ flex: 1 }}>
                             <img src="https://i.postimg.cc/vBGtNsKg/Whats-App-Image-2026-03-06-at-15-14-14.jpg" alt="Logo Escuela" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
                             <div>
-                                <h2 style={{ margin: 0, textTransform: 'uppercase', fontWeight: 'bold' }}>ESCUELA PRIMARIA N°6</h2>
-                                <h3 style={{ margin: 0, textTransform: 'uppercase' }}>RAFAEL OBLIGADO</h3>
-                                <div style={{ marginTop: '5px', fontWeight: 'bold' }}>PLANILLA DE CALIFICACIONES - {trimestre.toUpperCase()}</div>
+                                <h2 style={{ margin: 0, textTransform: 'uppercase', fontWeight: 'bold', fontSize: '1rem' }}>ESCUELA PRIMARIA N°6</h2>
+                                <h3 style={{ margin: 0, textTransform: 'uppercase', fontSize: '0.85rem' }}>RAFAEL OBLIGADO</h3>
+                                <div style={{ marginTop: '5px', fontWeight: 'bold', fontSize: '0.85rem' }}>PLANILLA DE CALIFICACIONES - {trimestre.toUpperCase()}</div>
                             </div>
                         </div>
                         <div style={{ textAlign: 'center', minWidth: '150px' }}>
-                            <div style={{ border: '1px solid black', padding: '5px', fontWeight: 'bold', marginBottom: '5px' }}>CICLO LECTIVO<br />{new Date().getFullYear()}</div>
-                            <div style={{ border: '1px solid black', padding: '5px', fontWeight: 'bold' }}>AÑO: {grado}° {seccion} | {courseId.split('-')[1] === 'TM' ? 'TM' : courseId.split('-')[1] === 'TT' ? 'TT' : courseId.split('-')[1]}</div>
+                            <div style={{ border: '1px solid black', padding: '5px', fontWeight: 'bold', marginBottom: '5px', fontSize: '0.8rem' }}>CICLO LECTIVO<br />{new Date().getFullYear()}</div>
+                            <div style={{ border: '1px solid black', padding: '5px', fontWeight: 'bold', fontSize: '0.8rem' }}>AÑO: {grado}° {seccion} | {courseId.split('-')[1] === 'TM' ? 'TM' : courseId.split('-')[1] === 'TT' ? 'TT' : courseId.split('-')[1]}</div>
                         </div>
                     </div>
                 </div>
@@ -281,19 +383,34 @@ export default function CourseDetails() {
                     <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                         <thead>
                             <tr style={{ backgroundColor: 'var(--color-background)', borderBottom: '2px solid var(--color-border)' }}>
-                                <th className="print-only vertical-text" style={{ padding: '1rem', width: '40px', textAlign: 'center', verticalAlign: 'middle' }}>N° DE ORDEN</th>
-                                <th style={{ padding: '1rem', minWidth: '160px', textAlign: 'center', verticalAlign: 'middle' }}>APELLIDO Y NOMBRE</th>
+                                <th className="print-only" rowSpan={trimestre === 'Informe Final' ? 2 : 1} style={{ padding: '0.5rem', width: '30px', textAlign: 'center', verticalAlign: 'middle' }}>N°</th>
+                                <th className="student-name-cell" rowSpan={trimestre === 'Informe Final' ? 2 : 1} style={{ padding: '0.5rem', minWidth: '130px', textAlign: 'left', verticalAlign: 'middle', fontSize: '0.85rem' }}>ESTUDIANTE</th>
                                 {subjects.map((sub, i) => (
-                                    <th key={i} className="vertical-text" style={{ padding: '1rem', width: '40px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle' }}>{sub.toUpperCase()}</th>
+                                    <th key={i} colSpan={trimestre === 'Informe Final' ? 5 : 1} style={{ padding: '0.5rem', borderLeft: '1px solid var(--color-border)', textAlign: 'center', fontSize: '0.75rem' }}>
+                                        {sub.toUpperCase()}
+                                    </th>
                                 ))}
                                 {!isStrictAreaTeacher && (
                                     <>
-                                        <th className="vertical-text" style={{ padding: '1rem', width: '40px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle' }}>DÍAS HÁBILES</th>
-                                        <th className="vertical-text" style={{ padding: '1rem', width: '40px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle' }}>INASISTENCIAS</th>
+                                        <th className="vertical-text" rowSpan={trimestre === 'Informe Final' ? 2 : 1} style={{ padding: '0.5rem', width: '35px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle', fontSize: '0.7rem' }}>DÍAS</th>
+                                        <th className="vertical-text" rowSpan={trimestre === 'Informe Final' ? 2 : 1} style={{ padding: '0.5rem', width: '35px', whiteSpace: 'normal', textAlign: 'center', verticalAlign: 'middle', fontSize: '0.7rem' }}>INAS.</th>
                                     </>
                                 )}
-                                <th style={{ padding: '1rem', minWidth: '180px', textAlign: 'center', verticalAlign: 'middle' }}>OBSERVACIONES</th>
+                                <th className="obs-column no-print" rowSpan={trimestre === 'Informe Final' ? 2 : 1} style={{ padding: '0.5rem', minWidth: '150px', textAlign: 'left', verticalAlign: 'middle', fontSize: '0.85rem' }}>OBSERVACIONES</th>
                             </tr>
+                            {trimestre === 'Informe Final' && (
+                                <tr style={{ backgroundColor: 'var(--color-background)', fontSize: '0.65rem' }}>
+                                    {subjects.map((sub, i) => (
+                                        <Fragment key={i}>
+                                            <th style={{ padding: '2px', borderLeft: '1px solid var(--color-border)', width: '20px' }}>1T</th>
+                                            <th style={{ padding: '2px', width: '20px' }}>2T</th>
+                                            <th style={{ padding: '2px', width: '20px' }}>3T</th>
+                                            <th style={{ padding: '2px', width: '20px' }}>EX</th>
+                                            <th style={{ padding: '2px', backgroundColor: '#f1f5f9', width: '20px' }}>FIN</th>
+                                        </Fragment>
+                                    ))}
+                                </tr>
+                            )}
                         </thead>
                         <tbody>
                             {students.length === 0 ? (
@@ -304,61 +421,58 @@ export default function CourseDetails() {
                                 </tr>
                             ) : students.map((st, index) => (
                                 <tr key={st.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                    <td className="print-only" style={{ padding: '1rem', textAlign: 'center' }}>{index + 1}</td>
-                                    <td style={{ padding: '1rem' }}>
-                                        <Link to={`/estudiantes/${st.id}`} className="no-print flex items-center gap-2 mb-1" style={{ fontWeight: 600, color: 'var(--color-primary)' }}>
-                                            <User size={16} />
+                                    <td className="print-only" style={{ padding: '0.4rem', textAlign: 'center', fontSize: '0.8rem' }}>{index + 1}</td>
+                                    <td className="student-name-cell" style={{ padding: '0.4rem' }}>
+                                        <Link to={`/estudiantes/${st.id}`} className="no-print flex items-center gap-1 mb-1" style={{ fontWeight: 600, color: 'var(--color-primary)', fontSize: '0.85rem' }}>
+                                            <User size={14} />
                                             {st.nombre}
                                         </Link>
-                                        <div className="no-print" style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>DNI: {st.dni}</div>
-                                        <div className="print-only" style={{ fontWeight: 600, textTransform: 'uppercase' }}>{st.nombre.toUpperCase()}</div>
+                                        <div className="no-print" style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>DNI: {st.dni}</div>
+                                        <div className="print-only" style={{ fontWeight: 600, textTransform: 'uppercase', fontSize: '0.8rem' }}>{st.nombre.toUpperCase()}</div>
                                     </td>
                                     {subjects.map((sub, i) => (
-                                        <td key={i} style={{ padding: '1rem' }}>
-                                            {isConceptual ? (
-                                                <select
-                                                    className="input-field sheet-input"
-                                                    style={{ minWidth: '80px', cursor: (!allowEdit || (isStrictAreaTeacher && currentUser?.materiaEspecial !== sub)) ? 'not-allowed' : 'pointer' }}
-                                                    value={grades[st.id]?.[sub] || ''}
-                                                    onChange={(e) => handleGradeChange(st.id, sub, e.target.value)}
-                                                    disabled={!allowEdit || (isStrictAreaTeacher && currentUser?.materiaEspecial !== sub)}
-                                                >
-                                                    <option value="" disabled>-</option>
-                                                    <option value="Sobresaliente">S</option>
-                                                    <option value="Muy bueno">MB</option>
-                                                    <option value="Bueno">B</option>
-                                                    <option value="Regular">R</option>
-                                                    <option value="Desaprobado">D</option>
-                                                </select>
+                                        <Fragment key={i}>
+                                            {trimestre === 'Informe Final' ? (
+                                                <>
+                                                    <td style={{ padding: '2px', textAlign: 'center', fontSize: '0.7rem', borderLeft: '1px solid var(--color-border)' }}>
+                                                        {formatGrade(st.informes?.find(inf => inf.trimestre === '1er Trimestre')?.materias?.[sub])}
+                                                    </td>
+                                                    <td style={{ padding: '2px', textAlign: 'center', fontSize: '0.7rem' }}>
+                                                        {formatGrade(st.informes?.find(inf => inf.trimestre === '2do Trimestre')?.materias?.[sub])}
+                                                    </td>
+                                                    <td style={{ padding: '2px', textAlign: 'center', fontSize: '0.7rem' }}>
+                                                        {formatGrade(st.informes?.find(inf => inf.trimestre === '3er Trimestre')?.materias?.[sub])}
+                                                    </td>
+                                                    <td style={{ padding: '2px', textAlign: 'center', fontSize: '0.7rem' }}>
+                                                        {formatGrade(st.informes?.find(inf => inf.trimestre === 'Período Extendido')?.materias?.[sub])}
+                                                    </td>
+                                                    <td style={{ padding: '2px', textAlign: 'center', backgroundColor: '#f1f5f9' }}>
+                                                        {renderGradeInput(st, sub)}
+                                                    </td>
+                                                </>
                                             ) : (
-                                                <input
-                                                    className="input-field sheet-input"
-                                                    type="number" min="1" max="10"
-                                                    placeholder="-"
-                                                    style={{ width: '60px', cursor: (!allowEdit || (isStrictAreaTeacher && currentUser?.materiaEspecial !== sub)) ? 'not-allowed' : 'text' }}
-                                                    value={grades[st.id]?.[sub] || ''}
-                                                    onChange={(e) => handleGradeChange(st.id, sub, e.target.value)}
-                                                    disabled={!allowEdit || (isStrictAreaTeacher && currentUser?.materiaEspecial !== sub)}
-                                                />
+                                                <td style={{ padding: '0.4rem' }}>
+                                                    {renderGradeInput(st, sub)}
+                                                </td>
                                             )}
-                                        </td>
+                                        </Fragment>
                                     ))}
                                     {!isStrictAreaTeacher && (
                                         <>
-                                            <td style={{ padding: '1rem', textAlign: 'center' }}>
+                                            <td style={{ padding: '0.4rem', textAlign: 'center' }}>
                                                 <input
                                                     className="input-field mb-0 text-center"
-                                                    style={{ width: '50px', padding: '0.25rem', cursor: (!allowEdit || isStrictAreaTeacher) ? 'not-allowed' : 'text' }}
+                                                    style={{ width: '40px', padding: '0.3rem', fontSize: '0.8rem', cursor: (!allowEdit || isStrictAreaTeacher) ? 'not-allowed' : 'text' }}
                                                     type="number" min="0"
                                                     value={diasHabiles[st.id] || ''}
                                                     onChange={(e) => handleDiasHabilesChange(st.id, e.target.value)}
                                                     disabled={!allowEdit || isStrictAreaTeacher}
                                                 />
                                             </td>
-                                            <td style={{ padding: '1rem', textAlign: 'center' }}>
+                                            <td style={{ padding: '0.4rem', textAlign: 'center' }}>
                                                 <input
                                                     className="input-field mb-0 text-center"
-                                                    style={{ width: '50px', padding: '0.25rem', cursor: (!allowEdit || isStrictAreaTeacher) ? 'not-allowed' : 'text' }}
+                                                    style={{ width: '40px', padding: '0.3rem', fontSize: '0.8rem', cursor: (!allowEdit || isStrictAreaTeacher) ? 'not-allowed' : 'text' }}
                                                     type="number" min="0" step="0.5"
                                                     value={inasistencias[st.id] || ''}
                                                     onChange={(e) => handleInasistenciasChange(st.id, e.target.value)}
@@ -367,7 +481,7 @@ export default function CourseDetails() {
                                             </td>
                                         </>
                                     )}
-                                    <td style={{ padding: '1rem' }}>
+                                    <td className="no-print" style={{ padding: '1rem' }}>
                                         <div className="flex flex-col gap-2">
                                             {/* Existing observations from other teachers */}
                                             {Object.entries(generalComments[st.id] || {}).map(([uid, obs]) => (
@@ -445,6 +559,14 @@ export default function CourseDetails() {
                         </button>
                     </div>
                 )}
+
+                <div className="print-only" style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'center', gap: '2rem', fontSize: '0.65rem', fontWeight: 600 }}>
+                    <div><strong>1T:</strong> 1er Trimestre</div>
+                    <div><strong>2T:</strong> 2do Trimestre</div>
+                    <div><strong>3T:</strong> 3er Trimestre</div>
+                    <div><strong>EX:</strong> Período Extendido</div>
+                    <div><strong>FIN:</strong> Calificación Final</div>
+                </div>
 
                 {isConceptual && (
                     <div style={{ marginTop: '1rem', borderTop: '2px solid #e2e8f0', paddingTop: '1rem' }}>

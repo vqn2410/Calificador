@@ -72,32 +72,74 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                     <X size={24} />
                 </button>
             )}
-            <div style={{ paddingBottom: '2rem', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '1.5rem' }}>
+            <div style={{ paddingBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '1.5rem' }}>
                 <div className="flex items-center gap-2 mb-4">
                     <img src="https://i.postimg.cc/vBGtNsKg/Whats-App-Image-2026-03-06-at-15-14-14.jpg" alt="Logo Escuela 6" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'contain', backgroundColor: 'white' }} />
                     <h2 style={{ margin: 0, fontSize: '0.9rem' }}>EP N°6 <br />
                         <span style={{ color: 'var(--color-accent)', fontSize: '0.9rem' }}>Calificador Digital</span></h2>
                 </div>
+
                 {currentUser?.roles?.length > 1 && (
-                    <div style={{ marginTop: '1rem' }}>
-                        <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: '0.25rem' }}>CAMBIAR PERFIL:</label>
-                        <div className="flex flex-wrap gap-1">
+                    <div style={{ 
+                        marginTop: '0.5rem', 
+                        marginBottom: '1rem'
+                    }}>
+                        <button
+                            onClick={() => {
+                                // Toggle between the most likely roles or just trigger a role switch
+                                // For better UX, if there are exactly 2 roles, swap them.
+                                // If more, we'll keep the list but make the trigger RED.
+                                const nextRole = currentUser.roles.find(r => r !== activeRole);
+                                if (currentUser.roles.length === 2 && nextRole) {
+                                    switchRole(nextRole);
+                                }
+                            }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.75rem',
+                                width: '100%',
+                                backgroundColor: '#ef4444',
+                                color: 'white',
+                                padding: '0.85rem',
+                                borderRadius: '12px',
+                                fontWeight: 800,
+                                fontSize: '0.9rem',
+                                boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)',
+                                border: '2px solid rgba(255,255,255,0.2)',
+                                cursor: 'pointer',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em'
+                            }}
+                        >
+                            <ShieldCheck size={20} />
+                            CAMBIAR DE ROL
+                        </button>
+                        
+                        {/* If more than 2 roles, show the list below the red button but keep the button as the main trigger */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.5rem' }}>
                             {currentUser.roles.map(r => (
                                 <button
                                     key={r}
                                     onClick={() => switchRole(r)}
                                     style={{
-                                        fontSize: '0.65rem',
-                                        padding: '0.2rem 0.4rem',
-                                        borderRadius: '4px',
-                                        border: activeRole === r ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.2)',
-                                        backgroundColor: activeRole === r ? 'rgba(202,138,4,0.2)' : 'transparent',
-                                        color: activeRole === r ? 'var(--color-accent)' : 'white',
-                                        cursor: 'pointer'
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        width: '100%',
+                                        fontSize: '0.7rem',
+                                        padding: '0.4rem 0.75rem',
+                                        borderRadius: '6px',
+                                        backgroundColor: activeRole === r ? 'rgba(255,255,255,0.15)' : 'transparent',
+                                        color: activeRole === r ? 'white' : 'rgba(255,255,255,0.5)',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        fontWeight: activeRole === r ? 700 : 400
                                     }}
                                 >
-                                    {roleLabels[r] || r.toUpperCase()}
-                                    {r === 'equipo_conduccion' && currentUser?.cargo && ` (${currentUser.cargo})`}
+                                    <span>{roleLabels[r] || r.toUpperCase()}</span>
+                                    {activeRole === r && <div style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: '#ef4444' }} />}
                                 </button>
                             ))}
                         </div>

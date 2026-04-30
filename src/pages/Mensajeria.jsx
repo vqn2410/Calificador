@@ -15,7 +15,8 @@ import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import {
     MessageSquare, Send, Bell, Users, ArrowLeft,
-    Search, CheckCheck, Clock, Calendar, Trash2, CheckCircle2
+    Search, CheckCheck, Clock, Calendar, Trash2, CheckCircle2,
+    Edit3, X, MoreVertical
 } from 'lucide-react';
 
 /* ══════════════════════════════════════════════════
@@ -66,6 +67,12 @@ function formatTs(ts) {
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`;
     return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+}
+
+function formatFullDate(ts) {
+    if (!ts) return '';
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + 'hs';
 }
 
 function chatId(uid1, uid2) {
@@ -180,6 +187,18 @@ function AnunciosTab({ canSend, currentUser, activeRole }) {
         return () => clearInterval(iv);
     }, [programados, canSend]);
 
+    async function handleDeleteAnuncio(msgId) {
+        if (!window.confirm('¿Eliminar este anuncio definitivamente para todos?')) return;
+        try {
+            await updateDoc(doc(db, 'mensajes', msgId), {
+                estado: 'eliminado',
+                cuerpo: '⚠ Este anuncio ha sido eliminado por el autor.',
+                titulo: '(Anuncio Eliminado)',
+                editadoAt: serverTimestamp()
+            });
+        } catch (err) { alert('Error al eliminar: ' + err.message); }
+    }
+
     function getAudiencia() {
         if (audienciaTipo === 'broadcast') return audienciaBroadcast;
         if (audienciaTipo === 'curso') return audienciaCurso ? `curso:${audienciaCurso}` : '';
@@ -254,10 +273,15 @@ function AnunciosTab({ canSend, currentUser, activeRole }) {
                             <p style={{ margin: 0 }}>No hay anuncios aún.</p>
                         </div>
                     )}
-                    {mensajes.map(msg => (
+                    {mensajes.filter(m => m.estado !== 'eliminado' || m.enviadoPorUid === uid).map(msg => (
                         <div key={msg.id} className="card"
                             onClick={() => updateDoc(doc(db, 'mensajes', msg.id), { [`leido.${uid}`]: true }).catch(() => { })}
-                            style={{ borderLeft: `4px solid ${isUnread(msg) ? 'var(--color-primary)' : 'var(--color-border)'}`, padding: '0.9rem 1.1rem', cursor: 'default' }}>
+                            style={{ 
+                                borderLeft: `4px solid ${isUnread(msg) ? 'var(--color-primary)' : 'var(--color-border)'}`, 
+                                padding: '0.9rem 1.1rem', 
+                                cursor: 'default',
+                                opacity: msg.estado === 'eliminado' ? 0.6 : 1
+                            }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.3rem' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                                     {isUnread(msg) && <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: 'var(--color-primary)', display: 'inline-block', flexShrink: 0 }} />}
@@ -265,10 +289,20 @@ function AnunciosTab({ canSend, currentUser, activeRole }) {
                                     <AudienceBadge audiencia={msg.audiencia} />
                                     {msg.enviarEmail && <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: 8, backgroundColor: '#ecfdf5', color: '#065f46', fontWeight: 600 }}>📧</span>}
                                 </div>
-                                <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', flexShrink: 0 }}>{formatTs(msg.fechaEnvio)}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    {msg.enviadoPorUid === uid && msg.estado !== 'eliminado' && (
+                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteAnuncio(msg.id); }} title="Eliminar anuncio" style={{ background: 'none', border: 'none', color: 'var(--color-error)', cursor: 'pointer', padding: 0, display: 'flex' }}>
+                                            <Trash2 size={14} />
+                                        </button>
+                                    )}
+                                    <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', flexShrink: 0 }}>{formatTs(msg.fechaEnvio)}</span>
+                                </div>
                             </div>
                             <p style={{ margin: '0 0 0.35rem', fontSize: '0.83rem', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>{msg.cuerpo}</p>
-                            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Por <strong>{msg.enviadoPorNombre}</strong></div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>Por <strong>{msg.enviadoPorNombre}</strong></span>
+                                {msg.editadoAt && <span style={{ fontStyle: 'italic', fontSize: '0.65rem' }}>editado {formatFullDate(msg.editadoAt)}</span>}
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -554,6 +588,8 @@ function ChatWindow({ chatId: cId, otherUser, currentUser, onBack }) {
     const [messages, setMessages] = useState([]);
     const [text, setText] = useState('');
     const [sending, setSending] = useState(false);
+    const [editingId, setEditingId] = useState(null);
+    const [editContent, setEditContent] = useState('');
     const bottomRef = useRef(null);
 
     // Load messages
@@ -572,6 +608,37 @@ function ChatWindow({ chatId: cId, otherUser, currentUser, onBack }) {
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
+
+    async function deleteMessage(msgId) {
+        if (!window.confirm('¿Eliminar este mensaje?')) return;
+        try {
+            // In a real production app, we might use deleteDoc, 
+            // but here we'll just mark it as deleted to avoid broken thread view if it was the last message
+            await updateDoc(doc(db, 'chats', cId, 'mensajes', msgId), {
+                texto: '🚫 Mensaje eliminado',
+                eliminado: true,
+                timestampEdit: serverTimestamp()
+            });
+        } catch (err) { console.error(err); }
+    }
+
+    function startEdit(msg) {
+        setEditingId(msg.id);
+        setEditContent(msg.texto);
+    }
+
+    async function saveEdit(e) {
+        if (e) e.preventDefault();
+        if (!editContent.trim() || !editingId) return;
+        try {
+            await updateDoc(doc(db, 'chats', cId, 'mensajes', editingId), {
+                texto: editContent.trim(),
+                editadoAt: serverTimestamp()
+            });
+            setEditingId(null);
+            setEditContent('');
+        } catch (err) { console.error(err); }
+    }
 
     async function sendMessage(e) {
         e.preventDefault();
@@ -594,18 +661,18 @@ function ChatWindow({ chatId: cId, otherUser, currentUser, onBack }) {
     }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)', minHeight: 400 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 160px)', minHeight: 400 }}>
             {/* Chat header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 0', borderBottom: '1px solid var(--color-border)', marginBottom: '0.75rem' }}>
-                <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600, fontSize: '0.85rem' }}>
-                    <ArrowLeft size={18} /> Volver
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0', borderBottom: '1px solid var(--color-border)', marginBottom: '0.6rem' }}>
+                <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '0.2rem', fontWeight: 700, fontSize: '0.8rem' }}>
+                    <ArrowLeft size={16} /> Volver
                 </button>
-                <div style={{ width: 38, height: 38, borderRadius: '50%', backgroundColor: 'var(--color-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.9rem' }}>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: 'var(--color-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem' }}>
                     {(otherUser.nombre || '?')[0].toUpperCase()}
                 </div>
-                <div>
-                    <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{otherUser.nombre || 'Usuario'}</div>
-                    {otherUser.rol && <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{otherUser.rol}</div>}
+                <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{otherUser.nombre || 'Usuario'}</div>
+                    {otherUser.rol && <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{otherUser.rol}</div>}
                 </div>
             </div>
 
@@ -618,20 +685,52 @@ function ChatWindow({ chatId: cId, otherUser, currentUser, onBack }) {
                 )}
                 {messages.map(msg => {
                     const isMine = msg.enviadoPor === uid;
+                    const isEditing = editingId === msg.id;
                     return (
-                        <div key={msg.id} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
+                        <div key={msg.id} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', group: 'true' }} className="message-container">
                             <div style={{
                                 maxWidth: '80%', padding: '0.55rem 0.85rem', borderRadius: isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                                 backgroundColor: isMine ? 'var(--color-primary)' : 'var(--color-surface)',
                                 color: isMine ? 'white' : 'var(--color-text-main)',
                                 border: isMine ? 'none' : '1px solid var(--color-border)',
                                 fontSize: '0.875rem', lineHeight: 1.4,
+                                position: 'relative'
                             }}>
-                                <p style={{ margin: 0 }}>{msg.texto}</p>
-                                <div style={{ fontSize: '0.62rem', opacity: 0.7, marginTop: 3, textAlign: isMine ? 'right' : 'left', display: 'flex', alignItems: 'center', justifyContent: isMine ? 'flex-end' : 'flex-start', gap: 3 }}>
-                                    {formatTs(msg.timestamp)}
-                                    {isMine && <CheckCheck size={12} />}
-                                </div>
+                                {isEditing ? (
+                                    <form onSubmit={saveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: '200px' }}>
+                                        <textarea 
+                                            className="input-field" 
+                                            value={editContent} 
+                                            onChange={e => setEditContent(e.target.value)} 
+                                            autoFocus 
+                                            style={{ fontSize: '0.85rem', padding: '0.4rem', backgroundColor: 'white', color: 'black' }}
+                                        />
+                                        <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                                            <button type="button" onClick={() => setEditingId(null)} className="btn" style={{ padding: '2px 8px', fontSize: '0.7rem', backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }}>Cancelar</button>
+                                            <button type="submit" className="btn" style={{ padding: '2px 8px', fontSize: '0.7rem', backgroundColor: 'white', color: 'var(--color-primary)' }}>Guardar</button>
+                                        </div>
+                                    </form>
+                                ) : (
+                                    <>
+                                        <p style={{ margin: 0, fontStyle: msg.eliminado ? 'italic' : 'normal', opacity: msg.eliminado ? 0.7 : 1 }}>{msg.texto}</p>
+                                        <div style={{ fontSize: '0.62rem', opacity: 0.7, marginTop: 3, textAlign: isMine ? 'right' : 'left', display: 'flex', alignItems: 'center', justifyContent: isMine ? 'flex-end' : 'flex-start', gap: 3, flexWrap: 'wrap' }}>
+                                            {msg.editadoAt && <span style={{ fontWeight: 700 }}>editado {formatFullDate(msg.editadoAt)} • </span>}
+                                            {formatTs(msg.timestamp)}
+                                            {isMine && !msg.eliminado && <CheckCheck size={12} />}
+                                            
+                                            {isMine && !msg.eliminado && !isEditing && (
+                                                <div className="message-actions" style={{ marginLeft: '8px', display: 'flex', gap: '8px' }}>
+                                                    <button onClick={() => startEdit(msg)} title="Editar" style={{ color: 'inherit', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
+                                                        <Edit3 size={11} />
+                                                    </button>
+                                                    <button onClick={() => deleteMessage(msg.id)} title="Eliminar" style={{ color: 'inherit', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
+                                                        <Trash2 size={11} />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
                     );
