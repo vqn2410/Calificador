@@ -27,13 +27,20 @@ export default function AdminPanel() {
     const [docentes, setDocentes] = useState([]);
     const [loadingDocentes, setLoadingDocentes] = useState(false);
     const [editingDocente, setEditingDocente] = useState(null);
-    const [newDocente, setNewDocente] = useState({ nombre: '', apellido: '', dni: '', email: '', password: '', roles: ['docente'], cursos: '', materiaEspecial: '', hijosDnis: '', cargo: '' });
+    const [newDocente, setNewDocente] = useState({ nombreCompleto: '', dni: '', email: '', password: '', roles: ['docente'], cursos: '', materiaEspecial: '', hijosDnis: '', cargo: '' });
 
     // States Estudiantes
     const [estudiantes, setEstudiantes] = useState([]);
     const [loadingEstudiantes, setLoadingEstudiantes] = useState(false);
     const [editingEstudiante, setEditingEstudiante] = useState(null);
-    const [newEstudiante, setNewEstudiante] = useState({ nombre: '', apellido: '', dni: '', grado: '', seccion: '', turno: 'Mañana', famNombre: '', famApellido: '', famDni: '', famTelefono: '', famCorreo: '', famParentesco: 'Madre/Padre' });
+    const [newEstudiante, setNewEstudiante] = useState({ 
+        nombreCompleto: '', 
+        dni: '', 
+        grado: '', 
+        seccion: '', 
+        turno: 'Mañana', 
+        responsables: [{ nombreCompleto: '', dni: '', telefono: '', correo: '', parentesco: 'Madre/Padre' }] 
+    });
     const [searchStudentTerm, setSearchStudentTerm] = useState('');
     const [searchStudentCourse, setSearchStudentCourse] = useState('');
 
@@ -189,8 +196,7 @@ export default function AdminPanel() {
     const handleEditDocente = (d) => {
         setEditingDocente(d.id);
         setNewDocente({
-            nombre: d.nombre || '',
-            apellido: d.apellido || '',
+            nombreCompleto: d.displayName || `${d.nombre || ''} ${d.apellido || ''}`.trim(),
             dni: d.dni || '',
             email: d.email || '',
             password: '',
@@ -237,9 +243,7 @@ export default function AdminPanel() {
                 }
 
                 const docenteData = {
-                    nombre: newDocente.nombre,
-                    apellido: newDocente.apellido,
-                    displayName: `${newDocente.nombre} ${newDocente.apellido}`,
+                    displayName: newDocente.nombreCompleto,
                     dni: newDocente.dni.replace(/[\.\s-]/g, ''),
                     roles: newDocente.roles,
                     cursosAsignados: isOnlyFamilia ? [] : newDocente.cursos.split(',').map(c => c.trim()).filter(Boolean),
@@ -247,8 +251,6 @@ export default function AdminPanel() {
                     hijosDnis: newDocente.roles.includes('familia') ? newDocente.hijosDnis.split(',').map(h => h.trim()).filter(Boolean) : null,
                     cargo: newDocente.roles.includes('equipo_conduccion') ? newDocente.cargo : null
                 };
-
-                if (isOnlyFamilia) docenteData.email = submitEmail;
 
                 await updateDoc(doc(db, 'docentes', editingDocente), docenteData);
                 await logActivity('Actualización de Docente', `Se modificó el perfil de ${docenteData.displayName}`);
@@ -282,9 +284,7 @@ export default function AdminPanel() {
                 await signOut(secondaryAuth);
 
                 const docenteData = {
-                    nombre: newDocente.nombre,
-                    apellido: newDocente.apellido,
-                    displayName: `${newDocente.nombre} ${newDocente.apellido}`,
+                    displayName: newDocente.nombreCompleto,
                     dni: cleanDni,
                     email: submitEmail,
                     roles: newDocente.roles,
@@ -297,7 +297,7 @@ export default function AdminPanel() {
                 };
 
                 await setDoc(doc(db, 'docentes', userCredential.user.uid), docenteData);
-                await logActivity('Creación Docente', `Se creó acceso para ${newDocente.nombre} ${newDocente.apellido}`);
+                await logActivity('Creación Docente', `Se creó acceso para ${newDocente.nombreCompleto}`);
 
                 showMessage('success', 'Cuenta creada con éxito.');
                 cancelEditDocente();
@@ -310,11 +310,11 @@ export default function AdminPanel() {
 
     const cancelEditDocente = () => {
         setEditingDocente(null);
-        setNewDocente({ nombre: '', apellido: '', dni: '', email: '', password: '', roles: ['docente'], cursos: '', materiaEspecial: '', hijosDnis: '', cargo: '' });
+        setNewDocente({ nombreCompleto: '', dni: '', email: '', password: '', roles: ['docente'], cursos: '', materiaEspecial: '', hijosDnis: '', cargo: '' });
     };
 
     const downloadTeacherCSVModel = () => {
-        const csvContent = "data:text/csv;charset=utf-8,NOMBRE,APELLIDO,DNI,EMAIL,PASSWORD,ROLES,CURSOS,MATERIA_ESPECIAL,HIJOS_DNIS\nJuan,Docente,12345678,juan@escuela.com,pass123,docente,1A-TM;2B-TT,, \nMaria,Especialista,87654321,maria@escuela.com,pass876,docente_area,1A-TM;1B-TM;1C-TM,Inglés, \nCarlos,Familiar,11223344,carlos@correo.com,pass112,familia,, ,44556677;88990011";
+        const csvContent = "data:text/csv;charset=utf-8,NOMBRE_COMPLETO,DNI,EMAIL,PASSWORD,ROLES,CURSOS,MATERIA_ESPECIAL,HIJOS_DNIS\nJuan Docente,12345678,juan@escuela.com,pass123,docente,1A-TM;2B-TT,, \nMaria Especialista,87654321,maria@escuela.com,pass876,docente_area,1A-TM;1B-TM;1C-TM,Inglés, \nCarlos Familiar,11223344,carlos@correo.com,pass112,familia,, ,44556677;88990011";
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -337,9 +337,8 @@ export default function AdminPanel() {
                 let count = 0;
 
                 for (let i = 1; i < rows.length; i++) {
-                    const cols = rows[i].split(',').map(c => c.trim().replace(/"/g, ''));
-                    if (cols.length >= 6) {
-                        const [nombre, apellido, dni, email, password, rolesRaw, cursosRaw, materiaEspecial, hijosRaw] = cols;
+                    if (cols.length >= 5) {
+                        const [nombreCompleto, dni, email, password, rolesRaw, cursosRaw, materiaEspecial, hijosRaw] = cols;
                         if (!email || !password) continue;
 
                         const roles = rolesRaw.split(';').map(r => r.trim().toLowerCase()).filter(Boolean);
@@ -351,9 +350,7 @@ export default function AdminPanel() {
                             await signOut(secondaryAuth);
 
                             const docenteData = {
-                                nombre,
-                                apellido,
-                                displayName: `${nombre} ${apellido}`,
+                                displayName: nombreCompleto,
                                 dni: dni || '',
                                 email: email,
                                 roles: roles.length > 0 ? roles : ['docente'],
@@ -386,65 +383,67 @@ export default function AdminPanel() {
 
     const handleCreateEstudiante = async (e) => {
         e.preventDefault();
-        setMsg({ type: 'info', text: editingEstudiante ? 'Actualizando datos del estudiante...' : 'Registrando estudiante y responsable...' });
+        setMsg({ type: 'info', text: editingEstudiante ? 'Actualizando datos del estudiante...' : 'Registrando estudiante y responsables...' });
         try {
-            if (!newEstudiante.famDni || !newEstudiante.famCorreo || !newEstudiante.famApellido || !newEstudiante.famNombre || !newEstudiante.famTelefono) {
-                return showMessage('error', 'Faltan datos obligatorios del familiar responsable.');
-            }
-
-            const cleanFamDni = newEstudiante.famDni.replace(/[\.\s-]/g, '');
             const cleanEstDni = newEstudiante.dni.replace(/[\.\s-]/g, '');
-            
-            const q = query(collection(db, 'docentes'), where('dni', '==', cleanFamDni));
-            const snap = await getDocs(q);
+            const responsablesData = [];
 
-            if (!snap.empty) {
-                const familiar = snap.docs[0];
-                const famData = familiar.data();
-                const updatedRoles = [...new Set([...(famData.roles || []), 'familia'])];
-                const updatedHijos = [...new Set([...(famData.hijosDnis || []), cleanEstDni])];
+            for (const resp of newEstudiante.responsables) {
+                if (!resp.dni || !resp.correo || !resp.nombreCompleto || !resp.telefono) {
+                    return showMessage('error', 'Faltan datos obligatorios en uno de los responsables.');
+                }
 
-                await updateDoc(doc(db, 'docentes', familiar.id), {
-                    roles: updatedRoles,
-                    hijosDnis: updatedHijos,
-                    telefono: newEstudiante.famTelefono || famData.telefono || ''
-                });
-            } else {
-                const submitEmail = newEstudiante.famCorreo.includes('@') ? newEstudiante.famCorreo : `${newEstudiante.famCorreo}@familia.com`;
-                const submitPassword = newEstudiante.famDni;
+                const cleanFamDni = resp.dni.replace(/[\.\s-]/g, '');
+                
+                const q = query(collection(db, 'docentes'), where('dni', '==', cleanFamDni));
+                const snap = await getDocs(q);
 
-                const userCredential = await createUserWithEmailAndPassword(secondaryAuth, submitEmail, submitPassword);
-                await signOut(secondaryAuth);
+                if (!snap.empty) {
+                    const familiar = snap.docs[0];
+                    const famData = familiar.data();
+                    const updatedRoles = [...new Set([...(famData.roles || []), 'familia'])];
+                    const updatedHijos = [...new Set([...(famData.hijosDnis || []), cleanEstDni])];
 
-                const familiarData = {
-                    nombre: newEstudiante.famNombre,
-                    apellido: newEstudiante.famApellido,
-                    displayName: `${newEstudiante.famNombre} ${newEstudiante.famApellido}`,
-                    dni: cleanFamDni,
-                    email: submitEmail,
-                    telefono: newEstudiante.famTelefono,
-                    roles: ['familia'],
-                    hijosDnis: [cleanEstDni],
-                    createdAt: new Date(),
-                    mustChangePassword: true
-                };
-                // Adding parentesco to famData directly helps keep it localized
-                familiarData[`parentesco_${cleanEstDni}`] = newEstudiante.famParentesco;
-                await setDoc(doc(db, 'docentes', userCredential.user.uid), familiarData);
+                    const updateData = {
+                        roles: updatedRoles,
+                        hijosDnis: updatedHijos,
+                        telefono: resp.telefono || famData.telefono || ''
+                    };
+                    updateData[`parentesco_${cleanEstDni}`] = resp.parentesco;
+
+                    await updateDoc(doc(db, 'docentes', familiar.id), updateData);
+                } else {
+                    const submitEmail = resp.correo.includes('@') ? resp.correo : `${resp.correo}@familia.com`;
+                    const submitPassword = resp.dni.replace(/[\.\s-]/g, '');
+
+                    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, submitEmail, submitPassword);
+                    await signOut(secondaryAuth);
+
+                    const familiarData = {
+                        displayName: resp.nombreCompleto,
+                        dni: cleanFamDni,
+                        email: submitEmail,
+                        telefono: resp.telefono,
+                        roles: ['familia'],
+                        hijosDnis: [cleanEstDni],
+                        createdAt: new Date(),
+                        mustChangePassword: true
+                    };
+                    familiarData[`parentesco_${cleanEstDni}`] = resp.parentesco;
+                    await setDoc(doc(db, 'docentes', userCredential.user.uid), familiarData);
+                }
+                responsablesData.push({ dni: cleanFamDni, parentesco: resp.parentesco });
             }
 
             const nuevoTurnoStr = newEstudiante.turno === 'Mañana' ? 'TM' : 'TT';
             const nuevoCursoId = `${newEstudiante.grado}${newEstudiante.seccion}-${nuevoTurnoStr}`;
 
-            const cleanEstDniFinal = newEstudiante.dni.replace(/[\.\s-]/g, '');
-            const cleanFamDniFinal = newEstudiante.famDni.replace(/[\.\s-]/g, '');
-            
             const estudianteData = {
-                nombre: `${newEstudiante.apellido}, ${newEstudiante.nombre}`,
-                dni: cleanEstDniFinal,
+                nombre: newEstudiante.nombreCompleto,
+                dni: cleanEstDni,
                 cursoId: nuevoCursoId,
                 turno: newEstudiante.turno,
-                famFiliacion: { dni: cleanFamDniFinal, parentesco: newEstudiante.famParentesco }
+                responsables: responsablesData
             };
 
             if (editingEstudiante) {
@@ -456,8 +455,8 @@ export default function AdminPanel() {
                 estudianteData.informes = [];
                 estudianteData.historicoCursos = [];
                 await addDoc(collection(db, 'estudiantes'), estudianteData);
-                await logActivity('Matriculó Estudiante', `Se inscribió al alumno ${estudianteData.nombre} (Fam: ${newEstudiante.famApellido})`);
-                showMessage('success', 'Estudiante y Familiar registrados correctamente.');
+                await logActivity('Matriculó Estudiante', `Se inscribió al alumno ${estudianteData.nombre} con ${responsablesData.length} responsables.`);
+                showMessage('success', 'Estudiante y Responsables registrados correctamente.');
             }
 
             cancelEditEstudiante();
@@ -471,55 +470,77 @@ export default function AdminPanel() {
     const handleEditEstudiante = async (est) => {
         setEditingEstudiante(est.id);
 
-        let nom = est.nombre.split(',')[1]?.trim() || '';
-        let ape = est.nombre.split(',')[0]?.trim() || '';
         let gr = est.cursoId ? est.cursoId.charAt(0) : '';
         let sec = est.cursoId ? est.cursoId.charAt(1) : '';
 
         const initialForm = {
-            nombre: nom,
-            apellido: ape,
+            nombreCompleto: est.nombre || '',
             dni: est.dni || '',
             grado: gr,
             seccion: sec,
             turno: est.turno || 'Mañana',
-            famNombre: '',
-            famApellido: '',
-            famDni: est.famFiliacion?.dni || '',
-            famTelefono: '',
-            famCorreo: '',
-            famParentesco: est.famFiliacion?.parentesco || 'Madre/Padre'
+            responsables: []
         };
 
-        setNewEstudiante(initialForm);
-
-        // Intento de cruce dinámico para traer datos del familiar responsable
-        if (est.famFiliacion?.dni) {
+        const resps = est.responsables || (est.famFiliacion ? [est.famFiliacion] : []);
+        
+        const populatedResponsables = await Promise.all(resps.map(async (r) => {
             try {
-                const q = query(collection(db, 'docentes'), where('dni', '==', est.famFiliacion.dni));
+                const q = query(collection(db, 'docentes'), where('dni', '==', r.dni));
                 const snap = await getDocs(q);
                 if (!snap.empty) {
                     const famData = snap.docs[0].data();
-                    setNewEstudiante(prev => ({
-                        ...prev,
-                        famNombre: famData.nombre || '',
-                        famApellido: famData.apellido || '',
-                        famTelefono: famData.telefono || '',
-                        famCorreo: famData.email || ''
-                    }));
+                    return {
+                        nombreCompleto: famData.displayName || `${famData.nombre || ''} ${famData.apellido || ''}`.trim(),
+                        dni: famData.dni || r.dni,
+                        telefono: famData.telefono || '',
+                        correo: famData.email || '',
+                        parentesco: r.parentesco || 'Madre/Padre'
+                    };
                 }
-            } catch (err) {
-                console.error("Error fetching familiar details for edit:", err);
-            }
-        }
+            } catch (e) { console.error(e); }
+            return { nombreCompleto: '', dni: r.dni, telefono: '', correo: '', parentesco: r.parentesco };
+        }));
 
+        initialForm.responsables = populatedResponsables.length > 0 ? populatedResponsables : [{ nombreCompleto: '', dni: '', telefono: '', correo: '', parentesco: 'Madre/Padre' }];
+
+        setNewEstudiante(initialForm);
         window.scrollTo({ top: 0, behavior: 'smooth' });
-        showMessage('info', 'Modificando ficha de alumno. Los datos del familiar se han precargado desde su cuenta de usuario.');
     };
 
     const cancelEditEstudiante = () => {
         setEditingEstudiante(null);
-        setNewEstudiante({ nombre: '', apellido: '', dni: '', grado: '', seccion: '', turno: 'Mañana', famNombre: '', famApellido: '', famDni: '', famTelefono: '', famCorreo: '', famParentesco: 'Madre/Padre' });
+        setNewEstudiante({ 
+            nombreCompleto: '', 
+            dni: '', 
+            grado: '', 
+            seccion: '', 
+            turno: 'Mañana', 
+            responsables: [{ nombreCompleto: '', dni: '', telefono: '', correo: '', parentesco: 'Madre/Padre' }] 
+        });
+    };
+
+    const addResponsable = () => {
+        setNewEstudiante(prev => ({
+            ...prev,
+            responsables: [...prev.responsables, { nombreCompleto: '', dni: '', telefono: '', correo: '', parentesco: 'Madre/Padre' }]
+        }));
+    };
+
+    const removeResponsable = (index) => {
+        if (newEstudiante.responsables.length === 1) return;
+        setNewEstudiante(prev => ({
+            ...prev,
+            responsables: prev.responsables.filter((_, i) => i !== index)
+        }));
+    };
+
+    const updateResponsable = (index, field, value) => {
+        setNewEstudiante(prev => {
+            const updated = [...prev.responsables];
+            updated[index] = { ...updated[index], [field]: value };
+            return { ...prev, responsables: updated };
+        });
     };
 
     const handleDeleteEstudiante = async (id, nombre) => {
@@ -540,7 +561,7 @@ export default function AdminPanel() {
 
     // CSV LOGIC
     const downloadCSVModel = () => {
-        const csvContent = "data:text/csv;charset=utf-8,NOMBRE,APELLIDO,DNI,GRADO,SECCION,TURNO,FAM_NOMBRE,FAM_APELLIDO,FAM_DNI,FAM_TEL,FAM_CORREO\nJuan,Perez,12345678,1,A,Mañana,Carlos,Perez,11222333,1155556666,carlos@correo.com\nMaria,Gomez,87654321,3,B,Tarde,Ana,Gomez,33444555,1144445555,ana@correo.com";
+        const csvContent = "data:text/csv;charset=utf-8,NOMBRE_COMPLETO,DNI,GRADO,SECCION,TURNO,FAM_NOMBRE_COMPLETO,FAM_DNI,FAM_TEL,FAM_CORREO\nJuan Perez,12345678,1,A,Mañana,Carlos Perez,11222333,1155556666,carlos@correo.com\nMaria Gomez,87654321,3,B,Tarde,Ana Gomez,33444555,1144445555,ana@correo.com";
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -563,12 +584,11 @@ export default function AdminPanel() {
                 let count = 0;
 
                 for (let i = 1; i < rows.length; i++) {
-                    const cols = rows[i].split(',').map(c => c.trim().replace(/"/g, ''));
-                    if (cols.length >= 6) {
-                        const [nombre, apellido, dni, grado, seccion, turno, famN, famA, famD, famT, famC] = cols;
+                    if (cols.length >= 5) {
+                        const [nombreCompleto, dni, grado, seccion, turno, famNombreCompleto, famD, famT, famC] = cols;
                         if (!dni) continue;
 
-                        if (famD && famC && famA && famN) {
+                        if (famD && famC && famNombreCompleto) {
                             const q = query(collection(db, 'docentes'), where('dni', '==', famD));
                             const snap = await getDocs(q);
                             if (!snap.empty) {
@@ -582,7 +602,7 @@ export default function AdminPanel() {
                                 const userCredential = await createUserWithEmailAndPassword(secondaryAuth, submitEmail, famD);
                                 await signOut(secondaryAuth);
                                 const familiarData = {
-                                    nombre: famN, apellido: famA, displayName: `${famN} ${famA}`, dni: famD, email: submitEmail, telefono: famT || '', roles: ['familia'], hijosDnis: [dni], createdAt: new Date(), mustChangePassword: true
+                                    displayName: famNombreCompleto, dni: famD, email: submitEmail, telefono: famT || '', roles: ['familia'], hijosDnis: [dni], createdAt: new Date(), mustChangePassword: true
                                 };
                                 await setDoc(doc(db, 'docentes', userCredential.user.uid), familiarData);
                             }
@@ -592,7 +612,7 @@ export default function AdminPanel() {
                         const nuevoCursoId = `${grado}${seccion.toUpperCase()}-${nuevoTurnoStr}`;
 
                         const estudianteData = {
-                            nombre: `${apellido}, ${nombre}`,
+                            nombre: nombreCompleto,
                             dni: dni,
                             cursoId: nuevoCursoId,
                             turno: turno.toLowerCase().includes('ma') ? 'Mañana' : 'Tarde',
@@ -749,10 +769,7 @@ export default function AdminPanel() {
                         </h3>
                         <form onSubmit={handleSubmitDocente}>
                             <div className="input-group">
-                                <input className="input-field" placeholder="Nombre" required value={newDocente.nombre} onChange={e => setNewDocente({ ...newDocente, nombre: e.target.value })} />
-                            </div>
-                            <div className="input-group">
-                                <input className="input-field" placeholder="Apellido" required value={newDocente.apellido} onChange={e => setNewDocente({ ...newDocente, apellido: e.target.value })} />
+                                <input className="input-field" placeholder="Nombre Completo" required value={newDocente.nombreCompleto} onChange={e => setNewDocente({ ...newDocente, nombreCompleto: e.target.value })} />
                             </div>
                             <div className="input-group">
                                 <input className="input-field" placeholder="DNI" required value={newDocente.dni} onChange={e => setNewDocente({ ...newDocente, dni: e.target.value })} />
@@ -959,10 +976,7 @@ export default function AdminPanel() {
                         <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>Nota: Los familiares se crean habitualmente al matricular un alumno, pero aquí puede gestionarlos manualmente.</p>
                         <form onSubmit={handleSubmitDocente}>
                             <div className="input-group">
-                                <input className="input-field" placeholder="Nombre" required value={newDocente.nombre} onChange={e => setNewDocente({ ...newDocente, nombre: e.target.value })} />
-                            </div>
-                            <div className="input-group">
-                                <input className="input-field" placeholder="Apellido" required value={newDocente.apellido} onChange={e => setNewDocente({ ...newDocente, apellido: e.target.value })} />
+                                <input className="input-field" placeholder="Nombre Completo" required value={newDocente.nombreCompleto} onChange={e => setNewDocente({ ...newDocente, nombreCompleto: e.target.value })} />
                             </div>
                             <div className="input-group">
                                 <input className="input-field" placeholder="DNI" required value={newDocente.dni} onChange={e => setNewDocente({ ...newDocente, dni: e.target.value })} />
@@ -996,7 +1010,7 @@ export default function AdminPanel() {
                             <table className="stack-mobile" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                 <thead>
                                     <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                                        <th style={{ padding: '0.4rem', textAlign: 'left' }}>Nombre y Apellido</th>
+                                        <th style={{ padding: '0.4rem', textAlign: 'left' }}>Nombre Completo</th>
                                         <th style={{ padding: '0.4rem', textAlign: 'left' }}>DNI</th>
                                         <th style={{ padding: '0.4rem', textAlign: 'left' }}>Email / Hijos</th>
                                         <th style={{ padding: '0.4rem', textAlign: 'right' }}>Admin</th>
@@ -1062,42 +1076,51 @@ export default function AdminPanel() {
                             </h3>
                             <form onSubmit={handleCreateEstudiante}>
                                 <div className="input-group">
-                                    <input className="input-field" placeholder="Nombre" required value={newEstudiante.nombre} onChange={e => setNewEstudiante({ ...newEstudiante, nombre: e.target.value })} />
-                                </div>
-                                <div className="input-group">
-                                    <input className="input-field" placeholder="Apellido" required value={newEstudiante.apellido} onChange={e => setNewEstudiante({ ...newEstudiante, apellido: e.target.value })} />
+                                    <input className="input-field" placeholder="Nombre Completo del Estudiante" required value={newEstudiante.nombreCompleto} onChange={e => setNewEstudiante({ ...newEstudiante, nombreCompleto: e.target.value })} />
                                 </div>
                                 <div className="input-group">
                                     <input className="input-field" placeholder="DNI Estudiante" required value={newEstudiante.dni} onChange={e => setNewEstudiante({ ...newEstudiante, dni: e.target.value })} />
                                 </div>
-                                <h4 style={{ margin: '1rem 0 0.5rem', fontSize: '0.9rem', color: 'var(--color-primary)' }}>Responsable Familiar (Obligatorio)</h4>
-                                <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                                    <div className="input-group">
-                                        <input className="input-field" placeholder="Nombre Familiar" required value={newEstudiante.famNombre} onChange={e => setNewEstudiante({ ...newEstudiante, famNombre: e.target.value })} />
+                                <h4 style={{ margin: '1rem 0 0.5rem', fontSize: '0.9rem', color: 'var(--color-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    Responsables Familiares ({newEstudiante.responsables.length})
+                                    <button type="button" onClick={addResponsable} className="btn" style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}>+ Agregar otro</button>
+                                </h4>
+                                
+                                {newEstudiante.responsables.map((resp, index) => (
+                                    <div key={index} style={{ marginBottom: '1.5rem', padding: '1rem', border: '1px solid #e2e8f0', borderRadius: 'var(--radius-md)', backgroundColor: '#f8fafc', position: 'relative' }}>
+                                        {newEstudiante.responsables.length > 1 && (
+                                            <button 
+                                                type="button" 
+                                                onClick={() => removeResponsable(index)} 
+                                                style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        )}
+                                        <div className="input-group">
+                                            <input className="input-field" placeholder="Nombre Completo del Familiar" required value={resp.nombreCompleto} onChange={e => updateResponsable(index, 'nombreCompleto', e.target.value)} />
+                                        </div>
+                                        <div className="grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+                                            <div className="input-group">
+                                                <input className="input-field" placeholder="DNI Fam" required value={resp.dni} onChange={e => updateResponsable(index, 'dni', e.target.value)} />
+                                            </div>
+                                            <div className="input-group">
+                                                <input className="input-field" placeholder="Teléfono" required={!editingEstudiante} value={resp.telefono} onChange={e => updateResponsable(index, 'telefono', e.target.value)} />
+                                            </div>
+                                            <div className="input-group">
+                                                <select className="input-field" value={resp.parentesco} onChange={e => updateResponsable(index, 'parentesco', e.target.value)}>
+                                                    <option value="Madre/Padre">Madre / Padre</option>
+                                                    <option value="Tutor">Tutor / Tutor Legal</option>
+                                                    <option value="Abuelo/a">Abuelo /a</option>
+                                                    <option value="Hermano/a mayor">Hermano /a mayor</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div className="input-group" style={{ marginBottom: 0 }}>
+                                            <input className="input-field" type="email" placeholder="Correo Electrónico Familiar" required={!editingEstudiante} value={resp.correo} onChange={e => updateResponsable(index, 'correo', e.target.value)} />
+                                        </div>
                                     </div>
-                                    <div className="input-group">
-                                        <input className="input-field" placeholder="Apellido Familiar" required value={newEstudiante.famApellido} onChange={e => setNewEstudiante({ ...newEstudiante, famApellido: e.target.value })} />
-                                    </div>
-                                </div>
-                                <div className="grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
-                                    <div className="input-group">
-                                        <input className="input-field" placeholder="DNI Fam (Clave Prov.)" required value={newEstudiante.famDni} onChange={e => setNewEstudiante({ ...newEstudiante, famDni: e.target.value })} />
-                                    </div>
-                                    <div className="input-group">
-                                        <input className="input-field" placeholder="Teléfono" required={!editingEstudiante} value={newEstudiante.famTelefono} onChange={e => setNewEstudiante({ ...newEstudiante, famTelefono: e.target.value })} />
-                                    </div>
-                                    <div className="input-group">
-                                        <select className="input-field" value={newEstudiante.famParentesco} onChange={e => setNewEstudiante({ ...newEstudiante, famParentesco: e.target.value })}>
-                                            <option value="Madre/Padre">Madre / Padre</option>
-                                            <option value="Tutor">Tutor / Tutor Legal</option>
-                                            <option value="Abuelo/a">Abuelo /a</option>
-                                            <option value="Hermano/a mayor">Hermano /a mayor</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div className="input-group">
-                                    <input className="input-field" type="email" placeholder="Correo Electrónico Familiar" required={!editingEstudiante} value={newEstudiante.famCorreo} onChange={e => setNewEstudiante({ ...newEstudiante, famCorreo: e.target.value })} />
-                                </div>
+                                ))}
 
                                 <h4 style={{ margin: '1rem 0 0.5rem', fontSize: '0.9rem', color: 'var(--color-primary)' }}>Ciclo Lectivo</h4>
                                 <div className="grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
@@ -1190,7 +1213,7 @@ export default function AdminPanel() {
 
                         <div className="grid mb-4" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                             <div className="input-group" style={{ marginBottom: 0 }}>
-                                <input className="input-field" placeholder="Buscar por Nombre, Apellido o DNI..." value={searchStudentTerm} onChange={e => setSearchStudentTerm(e.target.value)} />
+                                <input className="input-field" placeholder="Buscar por Nombre Completo o DNI..." value={searchStudentTerm} onChange={e => setSearchStudentTerm(e.target.value)} />
                             </div>
                             <div className="input-group" style={{ marginBottom: 0 }}>
                                 <select className="input-field" value={searchStudentCourse} onChange={e => setSearchStudentCourse(e.target.value)}>
@@ -1395,7 +1418,8 @@ export default function AdminPanel() {
                                             // Find students linked to this parent DNI
                                             const myStudents = students.filter(st => {
                                                 const stFamDni = String(st.famFiliacion?.dni || '').replace(/[\.\s-]/g, '');
-                                                return stFamDni === cleanParentDni;
+                                                const hasInResponsables = (st.responsables || []).some(r => String(r.dni).replace(/[\.\s-]/g, '') === cleanParentDni);
+                                                return stFamDni === cleanParentDni || hasInResponsables;
                                             });
 
                                             if (myStudents.length > 0) {

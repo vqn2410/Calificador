@@ -158,13 +158,13 @@ export default function StaffOverview() {
                                                 >
                                                     <option value="">- Seleccionar Titular -</option>
                                                     {titularPool.map(s => (
-                                                        <option key={s.id} value={s.id}>{s.apellido}, {s.nombre}</option>
+                                                        <option key={s.id} value={s.id}>{s.displayName || `${s.nombre || ''} ${s.apellido || ''}`.trim()}</option>
                                                     ))}
                                                 </select>
                                             ) : (
                                                 <div className="flex items-center gap-2">
                                                     <User size={16} />
-                                                    <span style={{ fontWeight: 600 }}>{gradeTeacher ? `${gradeTeacher.apellido}, ${gradeTeacher.nombre}` : 'Sin asignar'}</span>
+                                                    <span style={{ fontWeight: 600 }}>{gradeTeacher ? (gradeTeacher.displayName || `${gradeTeacher.nombre || ''} ${gradeTeacher.apellido || ''}`.trim()) : 'Sin asignar'}</span>
                                                 </div>
                                             )}
                                         </div>
@@ -177,7 +177,7 @@ export default function StaffOverview() {
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <Layers size={16} />
-                                                    <span style={{ fontWeight: 600 }}>{parallelTeacher ? `${parallelTeacher.apellido}, ${parallelTeacher.nombre}` : 'Sin asignar'}</span>
+                                                    <span style={{ fontWeight: 600 }}>{parallelTeacher ? (parallelTeacher.displayName || `${parallelTeacher.nombre || ''} ${parallelTeacher.apellido || ''}`.trim()) : 'Sin asignar'}</span>
                                                 </div>
                                                 {isEditing && <p style={{ margin: '5px 0 0', fontSize: '0.65rem', fontStyle: 'italic' }}>(Referencial)</p>}
                                             </div>
@@ -199,7 +199,7 @@ export default function StaffOverview() {
                                                     >
                                                         <option value="">+ Vincular Área</option>
                                                         {areaPool.filter(ap => !courseTeachers.some(ct => ct.id === ap.id)).map(s => (
-                                                            <option key={s.id} value={s.id}>{s.materiaEspecial || 'Área'}: {s.apellido}</option>
+                                                            <option key={s.id} value={s.id}>{s.materiaEspecial || 'Área'}: {s.displayName || s.apellido}</option>
                                                         ))}
                                                     </select>
                                                 )}
@@ -210,7 +210,7 @@ export default function StaffOverview() {
                                                         <div key={at.id} style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(255,255,255,0.5)', padding: '2px 5px', borderRadius: '4px' }}>
                                                             <div>
                                                                 <span style={{ fontWeight: 700 }}>{at.materiaEspecial || 'Área'}</span>
-                                                                <p style={{ margin: 0, fontSize: '0.75rem', color: '#166534' }}>{at.apellido}</p>
+                                                                <p style={{ margin: 0, fontSize: '0.75rem', color: '#166534' }}>{at.displayName || at.apellido}</p>
                                                             </div>
                                                             {isEditing && (
                                                                 <button

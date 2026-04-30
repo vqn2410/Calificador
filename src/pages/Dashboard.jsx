@@ -12,7 +12,7 @@ export default function Dashboard() {
     const { currentUser, activeRole } = useAuth();
 
     if (activeRole === 'familia') {
-        return <Navigate to="/mis-hijos" replace />;
+        return <Navigate to="/panel/mis-hijos" replace />;
     }
 
     const [stats, setStats] = useState([
@@ -101,7 +101,7 @@ export default function Dashboard() {
                 </div>
                 {currentUser?.roles?.length > 1 && (
                     <div className="flex flex-col items-end gap-2 no-print">
-                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Perfil Activo: {activeRole.replace('_', ' ')}</span>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Perfil Activo: {(activeRole || '').replace('_', ' ')}</span>
                         <div className="flex gap-2">
                             {currentUser.roles.map(r => r !== activeRole && (
                                 <button 
@@ -158,7 +158,7 @@ export default function Dashboard() {
                             <h4 style={{ fontSize: '0.8rem', marginBottom: '1rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Mis Accesos Rápidos</h4>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
                                 {myCourses.map((c, idx) => (
-                                    <Link key={idx} to={`/cursos/${c}`} className="btn btn-outline" style={{ display: 'flex', flexDirection: 'column', padding: '0.4rem', border: '1px solid var(--color-border)' }}>
+                                    <Link key={idx} to={`/panel/cursos/${c}`} className="btn btn-outline" style={{ display: 'flex', flexDirection: 'column', padding: '0.4rem', border: '1px solid var(--color-border)' }}>
                                         <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{c.split('-')[0]}</span>
                                         <span style={{ fontSize: '0.6rem', opacity: 0.7 }}>{c.split('-')[1]}</span>
                                     </Link>

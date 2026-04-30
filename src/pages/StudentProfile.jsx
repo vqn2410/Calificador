@@ -11,7 +11,7 @@ export default function StudentProfile() {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
     const [student, setStudent] = useState(null);
-    const [familiar, setFamiliar] = useState(null);
+    const [familiares, setFamiliares] = useState([]);
     const [loading, setLoading] = useState(true);
 
     // Default mock fallback
@@ -35,16 +35,21 @@ export default function StudentProfile() {
                     const studentData = { id: d.id, ...d.data() };
                     setStudent(studentData);
 
-                    // Cross-link with Familiar
-                    if (studentData.famFiliacion?.dni) {
+                    // Cross-link with Familiars
+                    const resps = studentData.responsables || (studentData.famFiliacion ? [studentData.famFiliacion] : []);
+                    if (resps.length > 0) {
                         try {
-                            const qFam = query(collection(db, 'docentes'), where('dni', '==', studentData.famFiliacion.dni));
-                            const snapFam = await getDocs(qFam);
-                            if (!snapFam.empty) {
-                                setFamiliar(snapFam.docs[0].data());
+                            const foundFamiliars = [];
+                            for (const r of resps) {
+                                const qFam = query(collection(db, 'docentes'), where('dni', '==', r.dni));
+                                const snapFam = await getDocs(qFam);
+                                if (!snapFam.empty) {
+                                    foundFamiliars.push({ ...snapFam.docs[0].data(), parentesco: r.parentesco });
+                                }
                             }
+                            setFamiliares(foundFamiliars);
                         } catch (errFam) {
-                            console.error("Error fetching familiar cross-link:", errFam);
+                            console.error("Error fetching familiar cross-links:", errFam);
                         }
                     }
                 } else {
@@ -76,9 +81,7 @@ export default function StudentProfile() {
                         currentUser[`parentesco_${student.dni}`] ||
                         'Familiar';
 
-                    const nombre = currentUser.displayName ||
-                        `${currentUser.apellido || ''}, ${currentUser.nombre || ''}`.trim().replace(/^,/, '').trim() ||
-                        'Usuario';
+                    const nombre = currentUser.displayName || 'Usuario';
 
                     await updateDoc(studentRef, {
                         vistasFamilia: arrayUnion({
@@ -560,33 +563,34 @@ export default function StudentProfile() {
                 <div className="no-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginTop: '3rem' }}>
                     {/* Tarjeta de Vinculación Familiar */}
                     <div className="card" style={{ border: '2px dashed var(--color-primary)' }}>
-                        <h3 className="flex items-center gap-2 mb-4"><Users size={20} color="var(--color-primary)" /> Familiar Responsable</h3>
-                        {familiar ? (
-                            <div style={{ fontSize: '0.9rem' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                    <span style={{ fontWeight: 700, color: '#64748b' }}>Nombre:</span>
-                                    <span>{familiar.nombre} {familiar.apellido}</span>
+                        <h3 className="flex items-center gap-2 mb-4"><Users size={20} color="var(--color-primary)" /> Responsables Familiares</h3>
+                        {familiares.length > 0 ? (
+                            <div className="flex flex-col gap-4">
+                                {familiares.map((f, i) => (
+                                    <div key={i} style={{ fontSize: '0.9rem', paddingBottom: i < familiares.length - 1 ? '1rem' : 0, borderBottom: i < familiares.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '0.5rem' }}>
+                                            <span style={{ fontWeight: 700, color: '#64748b' }}>Nombre:</span>
+                                            <span>{f.displayName || `${f.nombre || ''} ${f.apellido || ''}`.trim()}</span>
 
-                                    <span style={{ fontWeight: 700, color: '#64748b' }}>Vínculo:</span>
-                                    <span>{student.famFiliacion?.parentesco || 'Madre/Padre'}</span>
+                                            <span style={{ fontWeight: 700, color: '#64748b' }}>Vínculo:</span>
+                                            <span>{f.parentesco || 'Familiar'}</span>
 
-                                    <span style={{ fontWeight: 700, color: '#64748b' }}>DNI:</span>
-                                    <span>{familiar.dni}</span>
+                                            <span style={{ fontWeight: 700, color: '#64748b' }}>DNI:</span>
+                                            <span>{f.dni}</span>
 
-                                    <span style={{ fontWeight: 700, color: '#64748b' }}>Email:</span>
-                                    <span style={{ color: 'var(--color-primary)' }}>{familiar.email}</span>
+                                            <span style={{ fontWeight: 700, color: '#64748b' }}>Email:</span>
+                                            <span style={{ color: 'var(--color-primary)' }}>{f.email}</span>
 
-                                    <span style={{ fontWeight: 700, color: '#64748b' }}>Teléfono:</span>
-                                    <span>{familiar.telefono || 'No registrado'}</span>
-                                </div>
-                                <div className="badge badge-success" style={{ fontSize: '0.7rem', marginTop: '1rem' }}>
-                                    Cuenta de acceso activa vinculada al DNI {familiar.dni}
-                                </div>
+                                            <span style={{ fontWeight: 700, color: '#64748b' }}>Teléfono:</span>
+                                            <span>{f.telefono || 'No registrado'}</span>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        ) : student.famFiliacion?.dni ? (
+                        ) : student?.responsables?.length > 0 || student?.famFiliacion?.dni ? (
                             <div style={{ padding: '1rem', backgroundColor: '#fff7ed', borderRadius: '8px', border: '1px solid #ffedd5' }}>
                                 <p style={{ margin: 0, color: '#c2410c', fontSize: '0.85rem' }}>
-                                    <strong>Aviso:</strong> Hay un DNI de responsable ({student.famFiliacion.dni}) registrado pero el familiar aún no ha creado su cuenta o los datos no coinciden.
+                                    <strong>Aviso:</strong> Hay responsables registrados pero sus cuentas aún no han sido activadas o los datos no coinciden.
                                 </p>
                             </div>
                         ) : (

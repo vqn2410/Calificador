@@ -59,7 +59,7 @@ export default function Courses() {
                 <ShieldAlert size={64} color="var(--color-error)" style={{ marginBottom: '1rem' }} />
                 <h1>Sin Cursos Asignados</h1>
                 <p>No tienes cursos vinculados a tu perfil. Contacta al administrador si crees que esto es un error.</p>
-                <Link to="/" className="btn btn-primary mt-4">Volver al Inicio</Link>
+                <Link to="/panel" className="btn btn-primary mt-4">Volver al Inicio</Link>
             </div>
         );
     }
@@ -75,7 +75,7 @@ export default function Courses() {
 
             <div className="courses-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
                 {courses.map(course => (
-                    <Link to={`/cursos/${course.id}`} key={course.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'var(--transition)', padding: '1rem' }}>
+                    <Link to={`/panel/cursos/${course.id}`} key={course.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'var(--transition)', padding: '1rem' }}>
                         <div className="flex items-center gap-3">
                             <div style={{ padding: '0.75rem', backgroundColor: 'var(--color-primary)', color: 'white', borderRadius: 'var(--radius-md)' }}>
                                 <BookOpen size={20} />

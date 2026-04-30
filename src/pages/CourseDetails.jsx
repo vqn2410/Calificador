@@ -36,7 +36,7 @@ export default function CourseDetails() {
 
     const isStrictAreaTeacher = activeRole === 'docente_area';
 
-    const teacherFull = currentUser?.displayName || `${currentUser?.nombre || ''} ${currentUser?.apellido || ''}`.trim() || 'Docente';
+    const teacherFull = currentUser?.displayName || 'Docente';
 
     let teacherRoleStr = 'Docente';
     if (activeRole === 'equipo_conduccion') teacherRoleStr = 'Equipo de Conducción';
@@ -229,7 +229,7 @@ export default function CourseDetails() {
                 <h1>Acceso No Permitido</h1>
                 <p>No tienes permisos para ver o editar las calificaciones de este curso (<b>{getCourseLabel(courseId)}</b>).
                     Si crees que esto es un error, por favor contacta al equipo directivo.</p>
-                <Link to="/cursos" className="btn btn-primary mt-4">Ver Mis Cursos Asignados</Link>
+                <Link to="/panel/cursos" className="btn btn-primary mt-4">Ver Mis Cursos Asignados</Link>
             </div>
         );
     }

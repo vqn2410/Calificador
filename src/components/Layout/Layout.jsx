@@ -52,22 +52,22 @@ export default function Layout() {
     const moreItems = [];
 
     if (activeRole === 'familia') {
-        primaryItems.push({ to: '/mis-hijos', icon: <Users size={22} />, label: 'Mis Hijos' });
-        primaryItems.push({ to: '/mensajeria', icon: <MessageSquare size={22} />, label: 'Mensajería' });
-        primaryItems.push({ to: '/configuracion', icon: <Settings size={22} />, label: 'Config.' });
+        primaryItems.push({ to: '/panel/mis-hijos', icon: <Users size={22} />, label: 'Mis Hijos' });
+        primaryItems.push({ to: '/panel/mensajeria', icon: <MessageSquare size={22} />, label: 'Mensajería' });
+        primaryItems.push({ to: '/panel/configuracion', icon: <Settings size={22} />, label: 'Config.' });
     } else {
-        primaryItems.push({ to: '/', icon: <LayoutDashboard size={22} />, label: 'Inicio', exact: true });
-        primaryItems.push({ to: '/cursos', icon: <GraduationCap size={22} />, label: 'Cursos' });
-        primaryItems.push({ to: '/mis-estudiantes', icon: <Users size={22} />, label: 'Alumnos' });
-        primaryItems.push({ to: '/mensajeria', icon: <MessageSquare size={22} />, label: 'Mensajes' });
+        primaryItems.push({ to: '/panel', icon: <LayoutDashboard size={22} />, label: 'Inicio', exact: true });
+        primaryItems.push({ to: '/panel/cursos', icon: <GraduationCap size={22} />, label: 'Cursos' });
+        primaryItems.push({ to: '/panel/mis-estudiantes', icon: <Users size={22} />, label: 'Alumnos' });
+        primaryItems.push({ to: '/panel/mensajeria', icon: <MessageSquare size={22} />, label: 'Mensajes' });
 
         // "Más" items
         if (isAdminOrConduccion) {
-            moreItems.push({ to: '/admin', icon: <ShieldCheck size={24} />, label: 'Administración' });
-            moreItems.push({ to: '/organizacion-institucional', icon: <Map size={24} />, label: 'Organización' });
-            moreItems.push({ to: '/audit-views', icon: <Eye size={24} />, label: 'Registros' });
+            moreItems.push({ to: '/panel/admin', icon: <ShieldCheck size={24} />, label: 'Administración' });
+            moreItems.push({ to: '/panel/organizacion-institucional', icon: <Map size={24} />, label: 'Organización' });
+            moreItems.push({ to: '/panel/audit-views', icon: <Eye size={24} />, label: 'Registros' });
         }
-        moreItems.push({ to: '/configuracion', icon: <Settings size={24} />, label: 'Configuración' });
+        moreItems.push({ to: '/panel/configuracion', icon: <Settings size={24} />, label: 'Configuración' });
     }
 
     const isInMore = moreItems.some(i => location.pathname === i.to || location.pathname.startsWith(i.to + '/'));

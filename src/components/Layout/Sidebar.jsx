@@ -151,7 +151,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                 {activeRole !== 'familia' ? (
                     <>
                         <NavLink
-                            to="/"
+                            to="/panel"
                             onClick={handleLinkClick}
                             style={({ isActive }) => ({
                                 display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem',
@@ -165,7 +165,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                         </NavLink>
 
                         <NavLink
-                            to="/cursos"
+                            to="/panel/cursos"
                             onClick={handleLinkClick}
                             style={({ isActive }) => ({
                                 display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem',
@@ -179,7 +179,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                         </NavLink>
 
                         <NavLink
-                            to="/mis-estudiantes"
+                            to="/panel/mis-estudiantes"
                             onClick={handleLinkClick}
                             style={({ isActive }) => ({
                                 display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem',
@@ -193,7 +193,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                         </NavLink>
 
                         <NavLink
-                            to="/audit-views"
+                            to="/panel/audit-views"
                             onClick={handleLinkClick}
                             style={({ isActive }) => ({
                                 display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem',
@@ -207,7 +207,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                         </NavLink>
 
                         <NavLink
-                            to="/organizacion-institucional"
+                            to="/panel/organizacion-institucional"
                             onClick={handleLinkClick}
                             style={({ isActive }) => ({
                                 display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem',
@@ -222,7 +222,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                     </>
                 ) : (
                     <NavLink
-                        to="/mis-hijos"
+                        to="/panel/mis-hijos"
                         onClick={handleLinkClick}
                         style={({ isActive }) => ({
                             display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem',
@@ -238,7 +238,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
 
                 {(activeRole === 'administrador' || activeRole === 'equipo_conduccion') && (
                     <NavLink
-                        to="/admin"
+                        to="/panel/admin"
                         onClick={handleLinkClick}
                         style={({ isActive }) => ({
                             display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem',
@@ -254,7 +254,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
 
                 {/* ── Secciones globales ── */}
                 <NavLink
-                    to="/mensajeria"
+                    to="/panel/mensajeria"
                     onClick={handleLinkClick}
                     style={({ isActive }) => ({
                         display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem',
@@ -275,7 +275,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                 </NavLink>
 
                 <NavLink
-                    to="/configuracion"
+                    to="/panel/configuracion"
                     onClick={handleLinkClick}
                     style={({ isActive }) => ({
                         display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem',

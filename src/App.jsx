@@ -8,6 +8,7 @@ import { lazy, Suspense, useEffect } from 'react';
 // ── Always-loaded ──────────────────────────────────────────
 import Layout from './components/Layout/Layout';
 import Login from './pages/Login';
+import Landing from './pages/Landing';
 import RolePickerOverlay from './components/Layout/RolePickerOverlay';
 import LockScreen from './components/Layout/LockScreen';
 
@@ -65,7 +66,7 @@ function RoleRoute({ children, allowedRoles }) {
 
   useEffect(() => {
     if (activeRole && allowedRoles && !allowedRoles.includes(activeRole)) {
-      navigate('/', { replace: true });
+      navigate('/panel', { replace: true });
     }
   }, [activeRole, location.pathname]);
 
@@ -83,11 +84,12 @@ function App() {
       <Router>
         <Suspense fallback={<PageLoader />}>
           <Routes>
+            <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/force-password-change" element={<ForcePasswordChange />} />
 
-            <Route path="/" element={
+            <Route path="/panel" element={
               <PrivateRoute><Layout /></PrivateRoute>
             }>
               <Route index element={<Dashboard />} />

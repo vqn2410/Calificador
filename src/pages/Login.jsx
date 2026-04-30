@@ -20,7 +20,7 @@ export default function Login() {
             if (currentUser.mustChangePassword) {
                 navigate('/force-password-change');
             } else {
-                navigate('/');
+                navigate('/panel');
             }
         }
     }, [currentUser, navigate]);
@@ -86,7 +86,7 @@ export default function Login() {
             }
 
             const mustChange = docSnap.exists() ? docSnap.data().mustChangePassword : false;
-            navigate(mustChange ? '/force-password-change' : '/');
+            navigate(mustChange ? '/force-password-change' : '/panel');
 
         } catch (err) {
             console.error('Login error:', err);
@@ -97,9 +97,42 @@ export default function Login() {
 
 
     return (
-        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-primary)' }}>
-            <div className="card fade-in" style={{ width: '100%', maxWidth: '400px', backgroundColor: 'white', padding: '2rem' }}>
-                <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+        <div className="login-wrapper" style={{ minHeight: '100vh', display: 'flex', backgroundColor: '#ffffff' }}>
+            {/* Left side: Image + Cards (Desktop only) */}
+            <div className="login-hero" style={{
+                flex: 1,
+                position: 'relative',
+                backgroundImage: 'url("https://images.unsplash.com/photo-1577896851231-70ef18881754?q=80&w=2070&auto=format&fit=crop")',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'flex-end',
+                padding: '3rem'
+            }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent, rgba(0,0,0,0.2))' }}></div>
+
+
+            </div>
+
+            {/* Right side: Login Form */}
+            <div className="login-form-container" style={{
+                flex: '0 0 480px',
+                padding: '2rem 3rem',
+                display: 'flex',
+                flexDirection: 'column',
+                backgroundColor: 'white',
+                position: 'relative',
+                justifyContent: 'center'
+            }}>
+                {/* Help Button top right */}
+                <div style={{ position: 'absolute', top: '2rem', right: '2rem' }}>
+                    <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--color-text-muted)', fontWeight: '500' }}>
+                        Ayuda <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'var(--color-primary)' }}>?</span>
+                    </button>
+                </div>
+
+                <div style={{ textAlign: 'center', marginBottom: '2.5rem', marginTop: '-2rem' }}>
                     <div style={{ marginBottom: '1.5rem' }}>
                         <img
                             src="https://i.postimg.cc/vBGtNsKg/Whats-App-Image-2026-03-06-at-15-14-14.jpg"
@@ -107,47 +140,46 @@ export default function Login() {
                             style={{ width: '90px', height: '90px', borderRadius: '50%', objectFit: 'contain', border: '3px solid var(--color-primary)', padding: '4px', backgroundColor: 'white' }}
                         />
                     </div>
-                    <h2 style={{ color: 'var(--color-primary)', fontSize: '1.5rem', fontWeight: '800', marginBottom: '0.5rem', lineHeight: '1.3' }}>
-                        Bienvenidos al <br /> Calificador Digital
+                    <h2 style={{ color: 'var(--color-primary)', fontSize: '1.5rem', fontWeight: '700', marginBottom: '0.5rem' }}>
+                        Hola 👋
                     </h2>
-                    <p style={{ color: 'var(--color-text-muted)', fontSize: '1rem', fontWeight: '600' }}>
-                        EP N° 6 "Rafael Obligado"
+                    <p style={{ color: 'var(--color-primary)', fontSize: '0.95rem', fontWeight: '600', cursor: 'pointer', margin: 0 }}>
+                        Cambiar de usuario
                     </p>
                 </div>
 
                 {error && <div className="badge badge-error" style={{ display: 'block', textAlign: 'center', marginBottom: '1.5rem', padding: '0.75rem' }}>{error}</div>}
 
-                <form onSubmit={handleSubmit}>
-                    <div className="input-group">
-                        <label className="input-label" htmlFor="email">Usuario (Correo Electrónico)</label>
+                <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: '340px', margin: '0 auto' }}>
+                    <div className="input-group" style={{ marginBottom: '1rem' }}>
                         <input
                             id="email"
                             type="email"
                             className="input-field"
-                            placeholder="ejemplo@abc.gob.ar"
+                            placeholder="Usuario o correo"
                             required
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
+                            style={{ padding: '0.85rem 1rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.95rem' }}
                         />
                     </div>
 
-                    <div className="input-group">
-                        <label className="input-label" htmlFor="password">Contraseña</label>
+                    <div className="input-group" style={{ marginBottom: '1.5rem' }}>
                         <div style={{ position: 'relative' }}>
                             <input
                                 id="password"
                                 type={showPassword ? 'text' : 'password'}
                                 className="input-field"
-                                placeholder="••••••••"
+                                placeholder="Clave"
                                 required
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                style={{ paddingRight: '2.75rem' }}
+                                style={{ padding: '0.85rem 1rem', paddingRight: '2.75rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.95rem' }}
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(v => !v)}
-                                style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: '0', display: 'flex', alignItems: 'center' }}
+                                style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '0', display: 'flex', alignItems: 'center' }}
                                 tabIndex={-1}
                                 title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                             >
@@ -158,28 +190,53 @@ export default function Login() {
 
                     <button
                         type="submit"
-                        className="btn btn-primary w-full mt-4"
+                        className="btn w-full"
                         disabled={loading}
+                        style={{
+                            padding: '0.85rem',
+                            borderRadius: '6px',
+                            fontSize: '1rem',
+                            fontWeight: '600',
+                            backgroundColor: '#86a0bc', // Similar to Patagonia button color
+                            border: 'none',
+                            color: 'white',
+                            transition: 'background-color 0.2s',
+                            cursor: loading ? 'not-allowed' : 'pointer'
+                        }}
                     >
-                        {loading ? 'Ingresando...' : (
-                            <>
-                                <LogIn size={20} />
-                                <span>Ingresar al Sistema</span>
-                            </>
-                        )}
+                        {loading ? 'Ingresando...' : 'Ingresar'}
                     </button>
 
-                    <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-                        <Link to="/forgot-password" style={{ fontSize: '0.85rem', color: 'var(--color-primary)', textDecoration: 'none' }}>
-                            ¿Olvidaste tu contraseña?
+                    <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+                        <Link to="/forgot-password" style={{ fontSize: '0.9rem', color: 'var(--color-primary)', fontWeight: '700', textDecoration: 'none' }}>
+                            Recuperar mi usuario o clave
                         </Link>
                     </div>
                 </form>
 
-                <div style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
-                    <p>¿Problemas para ingresar? Contacte al administrador institucional.</p>
+                {/* Footer right side */}
+                <div style={{ position: 'absolute', bottom: '2rem', left: 0, right: 0, textAlign: 'center', fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'flex', justifyContent: 'center', gap: '1.5rem', alignItems: 'center' }}>
+                    <span style={{ fontWeight: '500' }}>Encontranos en nuestras redes</span>
+                    <div style={{ display: 'flex', gap: '0.75rem', color: '#64748b' }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ cursor: 'pointer' }}><path d="M4 4l11.733 16h4.267l-11.733 -16z" /><path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772" /></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ cursor: 'pointer' }}><rect width="20" height="20" x="2" y="2" rx="5" ry="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" x2="17.51" y1="6.5" y2="6.5" /></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ cursor: 'pointer' }}><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" /></svg>
+                    </div>
                 </div>
             </div>
+
+            <style>{`
+                @media (max-width: 900px) {
+                    .login-hero {
+                        display: none !important;
+                    }
+                    .login-form-container {
+                        flex: 1 !important;
+                        padding: 2rem !important;
+                        justify-content: center !important;
+                    }
+                }
+            `}</style>
         </div>
     );
 }
