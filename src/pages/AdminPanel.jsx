@@ -564,6 +564,28 @@ export default function AdminPanel() {
         }
     };
 
+    const handleBulkDeleteStudents = async () => {
+        if (selectedEstudiantes.length === 0) return;
+        const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar permanentemente a los ${selectedEstudiantes.length} estudiantes seleccionados? Esta acción no se puede deshacer.`);
+        if (!confirmed) return;
+
+        setLoadingEstudiantes(true);
+        try {
+            for (const studentId of selectedEstudiantes) {
+                await deleteDoc(doc(db, 'estudiantes', studentId));
+            }
+            await logActivity('Baja Masiva Estudiantes', `Se eliminaron ${selectedEstudiantes.length} estudiantes en lote.`);
+            showMessage('success', `${selectedEstudiantes.length} estudiantes eliminados correctamente.`);
+            setSelectedEstudiantes([]);
+            fetchEstudiantes();
+        } catch (e) {
+            console.error("Bulk delete error:", e);
+            showMessage('error', 'Ocurrió un error al intentar eliminar los estudiantes.');
+        } finally {
+            setLoadingEstudiantes(false);
+        }
+    };
+
     // CSV LOGIC
     const downloadCSVModel = () => {
         const csvContent = "data:text/csv;charset=utf-8,NOMBRE_COMPLETO,DNI,FECHA_NACIMIENTO,GRADO,SECCION,TURNO,FAM1_NOMBRE,FAM1_DNI,FAM1_TEL,FAM1_CORREO,FAM2_NOMBRE,FAM2_DNI,FAM2_TEL,FAM2_CORREO\nJuan Perez,12345678,2015-05-15,1,A,Mañana,Carlos Perez,11222333,1155556666,carlos@correo.com,Maria Lopez,22333444,1166667777,maria@correo.com";
@@ -1221,6 +1243,17 @@ export default function AdminPanel() {
                                 <ArrowRightCircle size={18} />
                                 Migrar seleccionados ({selectedEstudiantes.length})
                             </button>
+
+                            {selectedEstudiantes.length > 0 && (
+                                <button
+                                    onClick={handleBulkDeleteStudents}
+                                    className="btn w-full mt-2"
+                                    style={{ backgroundColor: '#fee2e2', color: '#ef4444', border: '1px solid #fca5a5' }}
+                                >
+                                    <Trash2 size={18} />
+                                    Eliminar seleccionados ({selectedEstudiantes.length})
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -1231,6 +1264,15 @@ export default function AdminPanel() {
                                 <span className="badge badge-success ml-2">{filteredEstudiantes.length} Filtro / {estudiantes.length} Total</span>
                             </div>
                             <div className="flex gap-2">
+                                {selectedEstudiantes.length > 0 && (
+                                    <button 
+                                        onClick={handleBulkDeleteStudents} 
+                                        className="btn" 
+                                        style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem', backgroundColor: '#fee2e2', color: '#ef4444', borderColor: '#fca5a5' }}
+                                    >
+                                        <Trash2 size={16} /> Eliminar ({selectedEstudiantes.length})
+                                    </button>
+                                )}
                                 <button onClick={toggleSelectAll} className="btn btn-outline" style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
                                     <CheckSquare size={16} /> Select Todo
                                 </button>
